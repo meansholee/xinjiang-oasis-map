@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>西域绿洲 · 时空舆图</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 卷轴主舞台 -->
+  <div id="stage">
+    <canvas id="map"></canvas>
+    <svg id="overlay"></svg>
+
+    <!-- 卷轴边框装饰 -->
+    <div class="scroll-edge top"></div>
+    <div class="scroll-edge bottom"></div>
+
+    <!-- 题跋 · 左上 -->
+    <header id="titleblock">
+      <div class="seal">西<br/>域</div>
+      <div class="title-text">
+        <h1>西域绿洲</h1>
+        <p class="subtitle">时 空 舆 图</p>
+        <p class="dynasty-cn">— <span id="eraNameBig">西汉</span> —</p>
+      </div>
+    </header>
+
+    <!-- 图例 · 右上 -->
+    <div id="legend">
+      <div class="legend-row"><span class="dot town"></span>城镇 · 治所</div>
+      <div class="legend-row"><span class="dot relic"></span>文保 · 古迹</div>
+      <label class="legend-toggle"><input type="checkbox" id="toggleRelic" checked /> 显示古迹层</label>
+    </div>
+
+    <!-- 历史名片 · 右侧抽屉 -->
+    <aside id="card" class="hidden">
+      <button id="cardClose">✕</button>
+      <div class="card-seal" id="cardSeal">城</div>
+      <h2 id="cardName">—</h2>
+      <div class="card-era" id="cardEra">—</div>
+      <div class="card-coord" id="cardCoord">—</div>
+      <div class="card-divider"></div>
+      <div class="card-section-title">舆地数据</div>
+      <div class="data-bars" id="dataBars"></div>
+      <div class="card-divider"></div>
+      <div class="card-section-title">古籍载录</div>
+      <div class="ancient-text" id="ancientText">
+        <p class="placeholder">〔 待补古籍段落 〕<br/>此处将载录该城对应年代之史志原文，如《汉书·西域传》《大唐西域记》等。提供文字数据后自动填充。</p>
+      </div>
+    </aside>
+
+    <!-- 时间轴 · 底部 -->
+    <footer id="timeline">
+      <button id="playBtn" title="自动漫游">▶</button>
+      <div class="track-wrap">
+        <input type="range" id="eraSlider" min="0" max="14" step="1" value="0" />
+        <div class="track-ticks" id="trackTicks"></div>
+      </div>
+      <div class="era-readout">
+        <span id="eraName">西汉</span>
+        <span id="eraCount" class="count">— 城</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="vendor/d3.v7.min.js"></script>
+  <script src="data.js"></script>
+  <script src="geo.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+:root{
+  --gold-1:#f4e2b8;   /* 浅鎏金 */
+  --gold-2:#e6c478;   /* 中鎏金 */
+  --gold-3:#c79a4a;   /* 深鎏金 */
+  --sand-light:#f6ead0;
+  --ink:#2a2118;      /* 墨褐 */
+  --blue-deep:#1c3a5e;/* 黛蓝 */
+  --blue-teal:#1f4f63;/* 青金 */
+  --vermilion:#b3361f;/* 朱砂 */
+  --seal-red:#a83121;
+  --paper:#1a140d;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
+  font-family:"Noto Serif SC","Songti SC","STSong","SimSun",serif;color:var(--ink);}
+
+#stage{position:relative;width:100vw;height:100vh;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 40%, #2a2012 0%, #15100a 100%);}
+
+#map{position:absolute;inset:0;width:100%;height:100%;display:block;}
+#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+#overlay .hit{pointer-events:all;cursor:pointer;}
+
+/* 卷轴上下木轴 */
+.scroll-edge{position:absolute;left:0;right:0;height:26px;z-index:30;pointer-events:none;}
+.scroll-edge.top{top:0;background:linear-gradient(180deg,#3a2a16 0%,#5c4322 55%,rgba(92,67,34,0) 100%);
+  border-bottom:1px solid rgba(0,0,0,.3);}
+.scroll-edge.bottom{bottom:0;background:linear-gradient(0deg,#3a2a16 0%,#5c4322 55%,rgba(92,67,34,0) 100%);
+  border-top:1px solid rgba(0,0,0,.3);}
+
+/* 题跋 */
+#titleblock{position:absolute;top:46px;left:40px;z-index:20;display:flex;gap:16px;align-items:flex-start;}
+#titleblock .seal{writing-mode:vertical-rl;background:var(--seal-red);color:#f4e2b8;
+  font-weight:900;font-size:22px;padding:10px 7px;border-radius:4px;letter-spacing:3px;
+  box-shadow:0 3px 10px rgba(0,0,0,.4);border:1px solid #d9a;}
+#titleblock h1{writing-mode:vertical-rl;font-size:42px;font-weight:900;color:#2a1c0e;
+  letter-spacing:8px;text-shadow:0 1px 0 rgba(255,255,255,.3);height:200px;}
+.title-text{display:flex;flex-direction:row-reverse;gap:10px;}
+.title-text .subtitle{writing-mode:vertical-rl;font-size:17px;color:#5c4322;letter-spacing:6px;font-weight:600;}
+.title-text .dynasty-cn{writing-mode:vertical-rl;font-size:15px;color:var(--vermilion);
+  letter-spacing:3px;font-weight:700;align-self:flex-end;}
+
+/* 图例 */
+#legend{position:absolute;top:50px;right:40px;z-index:20;
+  background:rgba(244,226,184,.82);border:1px solid #c79a4a;border-radius:8px;
+  padding:12px 16px;font-size:13px;color:#3a2a16;backdrop-filter:blur(3px);
+  box-shadow:0 4px 14px rgba(0,0,0,.25);}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.dot{width:11px;height:11px;border-radius:50%;display:inline-block;}
+.dot.town{background:#b3361f;box-shadow:0 0 6px rgba(179,54,31,.8);}
+.dot.relic{background:#1c3a5e;box-shadow:0 0 5px rgba(28,58,94,.7);}
+.legend-toggle{display:flex;align-items:center;gap:6px;margin-top:4px;
+  padding-top:8px;border-top:1px dashed #c79a4a;cursor:pointer;font-size:12px;}
+
+/* 历史名片 */
+#card{position:absolute;top:0;right:0;height:100%;width:360px;z-index:40;
+  background:linear-gradient(160deg,#f6ead0 0%,#ecd8a8 100%);
+  border-left:3px solid #5c4322;box-shadow:-8px 0 30px rgba(0,0,0,.4);
+  padding:54px 30px 30px;transform:translateX(0);transition:transform .45s cubic-bezier(.4,0,.2,1);
+  overflow-y:auto;}
+#card.hidden{transform:translateX(110%);}
+#cardClose{position:absolute;top:16px;right:18px;background:none;border:none;
+  font-size:20px;color:#5c4322;cursor:pointer;}
+.card-seal{position:absolute;top:48px;right:26px;writing-mode:vertical-rl;
+  background:var(--seal-red);color:#f4e2b8;font-weight:900;font-size:18px;
+  padding:8px 6px;border-radius:3px;letter-spacing:2px;}
+#cardName{font-size:30px;font-weight:900;color:#2a1c0e;letter-spacing:2px;}
+.card-era{display:inline-block;margin-top:8px;background:var(--blue-deep);color:#f4e2b8;
+  font-size:13px;padding:3px 12px;border-radius:12px;letter-spacing:2px;}
+.card-coord{margin-top:10px;font-size:12px;color:#7a6342;font-family:monospace;}
+.card-divider{height:1px;background:linear-gradient(90deg,#c79a4a,transparent);margin:18px 0 12px;}
+.card-section-title{font-size:14px;font-weight:700;color:#5c4322;letter-spacing:3px;margin-bottom:10px;}
+.card-section-title::before{content:"◆ ";color:var(--vermilion);font-size:10px;}
+.data-bars .bar-row{margin-bottom:11px;}
+.data-bars .bar-label{display:flex;justify-content:space-between;font-size:12px;color:#5c4322;margin-bottom:3px;}
+.data-bars .bar-track{height:7px;background:rgba(92,67,34,.18);border-radius:4px;overflow:hidden;}
+.data-bars .bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#c79a4a,#b3361f);transition:width .6s;}
+.ancient-text{font-size:14px;line-height:2;color:#3a2a16;}
+.ancient-text .placeholder{color:#a08a5e;font-style:italic;line-height:1.9;
+  background:rgba(199,154,74,.12);padding:12px;border-left:3px solid #c79a4a;border-radius:0 6px 6px 0;}
+
+/* 时间轴 */
+#timeline{position:absolute;bottom:34px;left:50%;transform:translateX(-50%);z-index:25;
+  display:flex;align-items:center;gap:18px;width:min(78vw,860px);
+  background:rgba(244,226,184,.9);border:1px solid #c79a4a;border-radius:40px;
+  padding:12px 26px;box-shadow:0 6px 22px rgba(0,0,0,.35);backdrop-filter:blur(4px);}
+#playBtn{flex:none;width:42px;height:42px;border-radius:50%;border:none;cursor:pointer;
+  background:var(--seal-red);color:#f4e2b8;font-size:16px;transition:transform .2s;}
+#playBtn:hover{transform:scale(1.08);}
+.track-wrap{position:relative;flex:1;}
+#eraSlider{width:100%;-webkit-appearance:none;height:5px;border-radius:3px;
+  background:linear-gradient(90deg,#1c3a5e,#c79a4a,#b3361f);outline:none;}
+#eraSlider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+  background:#f6ead0;border:3px solid var(--seal-red);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4);}
+.track-ticks{display:flex;justify-content:space-between;margin-top:6px;}
+.track-ticks span{font-size:9px;color:#7a6342;flex:1;text-align:center;cursor:pointer;
+  white-space:nowrap;transition:color .2s;}
+.track-ticks span.active{color:var(--vermilion);font-weight:700;}
+.era-readout{flex:none;text-align:center;min-width:78px;}
+.era-readout #eraName{display:block;font-size:22px;font-weight:900;color:#2a1c0e;letter-spacing:2px;}
+.era-readout .count{font-size:11px;color:#7a6342;}
+
+/* 浮动诗签 / 文字粒子 */
+.float-glyph{position:absolute;color:#5c4322;font-size:18px;font-weight:600;pointer-events:none;
+  z-index:15;opacity:0;text-shadow:0 1px 2px rgba(255,255,255,.4);}

@@ -1,0 +1,15 @@
+# 系统文件
+.DS_Store
+*.log
+
+# 原始数据（未清洗的源表，不纳入版本库）
+属性表/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 临时
+/tmp/
+node_modules/
