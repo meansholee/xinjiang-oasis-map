@@ -8,7 +8,7 @@
   --blue-teal:#1f4f63;/* 青金 */
   --vermilion:#b3361f;/* 朱砂 */
   --seal-red:#a83121;
-  --paper:#1a140d;
+  --paper:#241508;
 }
 
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -16,10 +16,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
   font-family:"Noto Serif SC","Songti SC","STSong","SimSun",serif;color:var(--ink);}
 
 #stage{position:relative;width:100vw;height:100vh;overflow:hidden;
-  background:radial-gradient(ellipse at 50% 40%, #2a2012 0%, #15100a 100%);}
+  background:radial-gradient(ellipse at 52% 44%, #3a2510 0%, #2a1a08 45%, #1c1005 100%);}
 
-#map{position:absolute;inset:0;width:100%;height:100%;display:block;}
-#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+#bgCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0;}
+#map{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1;}
+#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;}
 #overlay .hit{pointer-events:all;cursor:pointer;}
 
 /* 卷轴上下木轴 */
@@ -104,3 +105,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
 /* 浮动诗签 / 文字粒子 */
 .float-glyph{position:absolute;color:#5c4322;font-size:18px;font-weight:600;pointer-events:none;
   z-index:15;opacity:0;text-shadow:0 1px 2px rgba(255,255,255,.4);}
+
+/* 名片：文本行信息（古籍载录 & 文保属性）*/
+.info-row { display:flex; gap:10px; margin-bottom:9px; align-items:flex-start; font-size:13px; }
+.info-label { flex:none; width:52px; color:#7a6342; font-weight:600; }
+.info-val { flex:1; color:#3a2a16; line-height:1.7; }
+.source-title { font-size:13px; color:#5c4322; font-style:italic; margin-bottom:8px; }
+.ancient-passage { font-size:14px; line-height:2.1; color:#2a1c0e; text-align:justify; }

@@ -9,6 +9,7 @@
 <body>
   <!-- 卷轴主舞台 -->
   <div id="stage">
+    <canvas id="bgCanvas"></canvas>
     <canvas id="map"></canvas>
     <svg id="overlay"></svg>
 
@@ -41,10 +42,10 @@
       <div class="card-era" id="cardEra">—</div>
       <div class="card-coord" id="cardCoord">—</div>
       <div class="card-divider"></div>
-      <div class="card-section-title">舆地数据</div>
+      <div class="card-section-title" id="cardSec1">舆地数据</div>
       <div class="data-bars" id="dataBars"></div>
       <div class="card-divider"></div>
-      <div class="card-section-title">古籍载录</div>
+      <div class="card-section-title" id="cardSec2">古籍载录</div>
       <div class="ancient-text" id="ancientText">
         <p class="placeholder">〔 待补古籍段落 〕<br/>此处将载录该城对应年代之史志原文，如《汉书·西域传》《大唐西域记》等。提供文字数据后自动填充。</p>
       </div>
@@ -67,6 +68,7 @@
   <script src="vendor/d3.v7.min.js"></script>
   <script src="data.js"></script>
   <script src="geo.js"></script>
+  <script src="historical_texts.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

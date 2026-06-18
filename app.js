@@ -21,11 +21,54 @@ const ctx     = canvas.getContext('2d');
 const svg     = d3.select('#overlay');
 
 let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
-let projection, geoPath;
+let projection;
+
+// 背景图预加载（file:// 离线可用）
+const bgImage = new Image();
+bgImage.onload = () => { if(projection){ drawBase(); startBgAnim(); } };
+bgImage.src = 'bg2.png';
+
+// 独立背景 canvas（用于流动动画，与主地图分层）
+const bgCanvas = document.getElementById('bgCanvas');
+const bgCtx    = bgCanvas.getContext('2d');
+let bgTick = 0, bgAnimRunning = false;
+
+function resizeBgCanvas(){
+  bgCanvas.width  = W * DPR; bgCanvas.height = H * DPR;
+  bgCanvas.style.width = W+'px'; bgCanvas.style.height = H+'px';
+  bgCtx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+function drawBgFrame(){
+  bgTick += 0.18; // 极慢漂移速度
+  const r  = bgTick * Math.PI / 180;
+  const ox = Math.sin(r * 0.55) * 16;   // X轴漂移 ±16px
+  const oy = Math.cos(r * 0.38) * 9;    // Y轴漂移 ±9px
+  const sc = 1 + Math.sin(r * 0.22) * 0.006; // 呼吸缩放 ±0.6%
+
+  bgCtx.clearRect(0, 0, W, H);
+  if(!bgImage.complete || !bgImage.naturalWidth) return;
+
+  bgCtx.save();
+  bgCtx.filter = 'blur(4px)';
+  bgCtx.translate(W/2 + ox, H/2 + oy);
+  bgCtx.scale(sc, sc);
+  const m = 20;
+  bgCtx.drawImage(bgImage, -W/2 - m, -H/2 - m, W + m*2, H + m*2);
+  bgCtx.filter = 'none';
+  bgCtx.restore();
+
+  requestAnimationFrame(drawBgFrame);
+}
+
+function startBgAnim(){
+  if(!bgAnimRunning){ bgAnimRunning = true; drawBgFrame(); }
+}
 
 /* ---------- 投影：真实经纬度 → 屏幕像素 ----------
-   注意：DataV 的省界 GeoJSON 环绕方向不规范，d3.geoBounds 会误判为整个地球，
-   导致 fitExtent 把所有点压成一团。故改用「手动平面 Mercator fit」绕过球面判断。 */
+   DataV 省界 GeoJSON 环绕方向不规范（外环顺时针，GeoJSON 标准应为逆时针）。
+   1. fitExtent：d3.geoBounds 用球面几何误判为「整个地球减去新疆」→ 改用手动平面 fit
+   2. geoPath：d3.geoPath 内置球面反子午线裁剪同样受影响 → tracePath 改用直接投影，绕过裁剪 */
 function setupProjection(){
   const padX = 54, padTop = 96, padBottom = 118;
   const p = d3.geoMercator().scale(1).translate([0,0]).center([0,0]);
@@ -42,7 +85,6 @@ function setupProjection(){
   const cx=(x0+x1)/2, cy=(y0+y1)/2;
   p.scale(s).translate([ W/2 - s*cx, (padTop + (H-padBottom))/2 - s*cy ]);
   projection = p;
-  geoPath = d3.geoPath(projection, ctx);
 }
 function proj(lng,lat){ return projection([lng,lat]); }
 
@@ -52,6 +94,7 @@ function resize(){
   canvas.width = W*DPR; canvas.height = H*DPR;
   canvas.style.width = W+'px'; canvas.style.height = H+'px';
   ctx.setTransform(DPR,0,0,DPR,0,0);
+  resizeBgCanvas();
   svg.attr('viewBox',`0 0 ${W} ${H}`);
   setupProjection();
   drawBase();
@@ -66,33 +109,80 @@ function resize(){
 let _seed = 20260618;
 function rnd(){ _seed = (_seed*9301+49297)%233280; return _seed/233280; }
 
-// 用 geoPath 把某个 feature 的轮廓描成 Canvas 路径
+/* 把 GeoJSON feature/geometry 轮廓描成 Canvas 路径（手动投影，绕过 D3 球面裁剪）
+   DataV 省界环绕方向不规范：d3.geoPath 的反子午线球面裁剪会把新疆误判为地球补集，
+   导致 fill/clip 全部反向。改为直接调用 projection() 逐点投影，绕过该球面判断。 */
 function tracePath(feature){
   ctx.beginPath();
-  geoPath(feature);
+  if(!feature) return;
+  function traceRing(ring){
+    ring.forEach(function(c, i){
+      const p = projection([c[0], c[1]]);
+      if(!p) return;
+      if(i === 0) ctx.moveTo(p[0], p[1]);
+      else ctx.lineTo(p[0], p[1]);
+    });
+    ctx.closePath();
+  }
+  function traceGeom(geom){
+    if(!geom) return;
+    if(geom.type === 'Polygon') geom.coordinates.forEach(traceRing);
+    else if(geom.type === 'MultiPolygon') geom.coordinates.forEach(function(poly){ poly.forEach(traceRing); });
+    else if(geom.type === 'GeometryCollection') geom.geometries.forEach(traceGeom);
+  }
+  if(feature.type === 'FeatureCollection') feature.features.forEach(function(f){ traceGeom(f.geometry); });
+  else if(feature.type === 'Feature') traceGeom(feature.geometry);
+  else traceGeom(feature);
 }
 
-/* —— 真实塔里木河 / 主要水系（简化经纬度折线）—— */
+/* —— 真实塔里木河 / 主要水系 —— */
+/* 支流末端坐标精确对齐到干流某点，确保视觉汇流 */
 const RIVERS = [
-  // 塔里木河干流（自西向东，沿塔克拉玛干北缘）
-  {name:'塔里木河', w:3.4, pts:[[78.3,40.5],[80.3,40.9],[81.3,40.6],[82.0,40.9],[83.6,41.1],[84.8,41.0],[85.5,41.0],[86.1,40.9],[87.0,40.8]]},
-  // 和田河（南向北汇入）
-  {name:'和田河', w:2, pts:[[79.9,37.1],[80.0,38.2],[80.2,39.3],[80.6,40.4],[81.0,40.9]]},
-  // 叶尔羌河
-  {name:'叶尔羌河', w:2, pts:[[76.0,38.0],[77.2,38.6],[78.3,39.4],[79.0,40.1],[79.8,40.5]]},
-  // 阿克苏河
-  {name:'阿克苏河', w:2, pts:[[79.6,41.6],[80.0,41.2],[80.6,40.8],[81.0,40.9]]},
-  // 伊犁河（西流）
-  {name:'伊犁河', w:2.6, pts:[[84.5,43.6],[83.2,43.8],[81.8,43.9],[80.6,43.9],[80.2,44.0]]},
-  // 孔雀河 / 开都河 — 博斯腾湖一带
-  {name:'孔雀河', w:1.8, pts:[[86.6,42.0],[86.2,41.7],[85.8,41.5],[85.3,41.2]]}
+  // 塔里木河干流（自叶尔羌汇口向东至台特玛湖）
+  {name:'塔里木河', w:3.4, pts:[
+    [79.45,40.52],[79.8,40.6],[80.3,40.9],[80.7,40.72],
+    [81.0,40.88],[81.5,40.72],[82.0,40.9],[82.6,40.98],
+    [83.2,41.08],[83.6,41.1],[84.2,41.05],[84.8,41.0],
+    [85.3,41.05],[85.5,41.0],[86.0,40.9],[86.5,40.82],[87.0,40.78]
+  ]},
+  // 叶尔羌河 → 汇入干流 [79.45, 40.52]
+  {name:'叶尔羌河', w:2.0, pts:[
+    [75.8,37.5],[76.5,38.0],[77.0,38.4],[77.6,38.8],
+    [78.1,39.3],[78.6,39.8],[79.0,40.15],[79.25,40.4],[79.45,40.52]
+  ]},
+  // 和田河 → 汇入干流 [81.0, 40.88]
+  {name:'和田河', w:1.9, pts:[
+    [79.9,36.8],[80.0,37.5],[80.1,38.1],[80.2,38.9],
+    [80.35,39.6],[80.55,40.2],[80.75,40.58],[80.9,40.76],[81.0,40.88]
+  ]},
+  // 阿克苏河 → 汇入干流 [81.0, 40.88]
+  {name:'阿克苏河', w:1.8, pts:[
+    [78.8,41.9],[79.3,41.6],[79.8,41.4],[80.2,41.2],
+    [80.5,41.05],[80.75,40.95],[81.0,40.88]
+  ]},
+  // 伊犁河（东起伊宁，西流出境）
+  {name:'伊犁河', w:2.6, pts:[
+    [85.5,43.2],[84.5,43.6],[83.5,43.78],[82.4,43.88],
+    [81.3,43.92],[80.4,43.95],[79.7,44.05],[79.1,44.18]
+  ]},
+  // 开都河 → 博斯腾湖 → 孔雀河（东流）
+  {name:'孔雀河', w:1.8, pts:[
+    [83.8,42.5],[84.4,42.28],[85.1,42.0],[85.7,41.72],
+    [86.2,41.52],[86.55,41.25],[86.85,41.0]
+  ]},
+  // 额尔齐斯河（阿尔泰山北麓，西北出境）
+  {name:'额尔齐斯河', w:2.1, pts:[
+    [90.0,47.6],[89.2,47.72],[88.5,47.8],[87.8,47.72],
+    [87.0,47.55],[86.2,47.32],[85.4,47.1],[84.6,47.0]
+  ]}
 ];
 
-// 博斯腾湖、艾比湖等（简化为多边形点）
+// 主要湖泊
 const LAKES = [
-  {name:'博斯腾湖', cx:87.0, cy:41.95, rx:0.42, ry:0.22},
-  {name:'艾比湖',   cx:82.9, cy:44.9,  rx:0.30, ry:0.18},
-  {name:'乌伦古湖', cx:87.3, cy:47.25, rx:0.28, ry:0.15}
+  {name:'博斯腾湖', cx:87.0,  cy:41.95, rx:0.44, ry:0.23},
+  {name:'艾比湖',   cx:82.9,  cy:44.9,  rx:0.30, ry:0.18},
+  {name:'乌伦古湖', cx:87.3,  cy:47.25, rx:0.28, ry:0.15},
+  {name:'赛里木湖', cx:81.22, cy:44.58, rx:0.15, ry:0.11}
 ];
 
 // 山脉脊线（天山、昆仑、阿尔泰）— 用于地形阴影
@@ -109,11 +199,17 @@ function drawBase(){
 
   if(!GEO_FULL){ return; }
 
-  // 1) 绢本底色（暗金，作画外背景）
-  const bg = ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#1c1710');
-  bg.addColorStop(1,'#241c12');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  // 0) 底图由 bgCanvas 动画层承载，主 canvas 透明背景
+  // 颗粒噪点叠在主 canvas 上（位于底图与地图之间）
+  for(let i=0;i<6000;i++){
+    const x=rnd()*W, y=rnd()*H;
+    const sz=rnd()*rnd()*1.6;
+    const br=rnd();
+    if(br>0.80)      ctx.fillStyle=`rgba(255,255,255,${rnd()*0.04})`;
+    else if(br<0.10) ctx.fillStyle=`rgba(60,50,40,${rnd()*0.03})`;
+    else             ctx.fillStyle=`rgba(220,215,205,${rnd()*0.02})`;
+    ctx.beginPath(); ctx.arc(x,y,sz,0,6.28); ctx.fill();
+  }
 
   // 2) 新疆整体轮廓 → 作为「画纸」剪影（鎏金绢面）
   ctx.save();
@@ -189,60 +285,179 @@ function paintBasin(lng,lat,wDeg,hDeg,c1,c2){
   ctx.restore();
 }
 
-// 山脉：沿脊线画带状青绿地形 + 雪线高光
-function drawRange(r){
-  const scr=r.pts.map(p=>proj(p[0],p[1]));
-  // 底部阴影带
-  ctx.save();
-  ctx.lineCap='round'; ctx.lineJoin='round';
-  // 外晕
-  ctx.strokeStyle=hexA(r.tone,0.28); ctx.lineWidth=r.width;
-  strokePoly(scr);
-  // 主脊
-  ctx.strokeStyle=hexA(r.tone,0.62); ctx.lineWidth=r.width*0.55;
-  strokePoly(scr);
-  // 脊线高光（雪线）
-  ctx.strokeStyle='rgba(240,236,224,.5)'; ctx.lineWidth=r.width*0.16;
-  strokePoly(scr);
-  ctx.restore();
-}
-function strokePoly(scr){
+/* ---------- Catmull-Rom 三次样条（平滑折线） ----------
+   替代原 strokePoly：控制点由相邻点推导，曲线精确经过每个顶点，终点不截断 */
+function strokeSpline(pts){
+  if(!pts || pts.length < 2) return;
+  const n = pts.length;
   ctx.beginPath();
-  scr.forEach((p,i)=>{
-    if(i===0) ctx.moveTo(p[0],p[1]);
-    else{
-      const pr=scr[i-1];
-      const mx=(pr[0]+p[0])/2, my=(pr[1]+p[1])/2;
-      ctx.quadraticCurveTo(pr[0],pr[1],mx,my);
-    }
-  });
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for(let i = 0; i < n - 1; i++){
+    const p0 = pts[Math.max(i-1,0)];
+    const p1 = pts[i];
+    const p2 = pts[i+1];
+    const p3 = pts[Math.min(i+2,n-1)];
+    ctx.bezierCurveTo(
+      p1[0]+(p2[0]-p0[0])/6, p1[1]+(p2[1]-p0[1])/6,
+      p2[0]-(p3[0]-p1[0])/6, p2[1]-(p3[1]-p1[1])/6,
+      p2[0], p2[1]
+    );
+  }
   ctx.stroke();
 }
+const strokePoly = strokeSpline; // 向后兼容
 
-function drawRiver(r){
+/* ---------- 山脉：舆图三角山峰图标风格 ----------
+   沿脊线均匀布置三角形山头（带后景小峰 + 阴影侧面），
+   取代原来的粗 stroke 画管效果 */
+function drawRange(r){
   const scr=r.pts.map(p=>proj(p[0],p[1]));
-  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
-  // 水体
-  ctx.strokeStyle='#2f6f8a'; ctx.lineWidth=r.w*1.9; strokePoly(scr);
-  ctx.strokeStyle='#3f93ad'; ctx.lineWidth=r.w; strokePoly(scr);
-  // 金线高光
-  ctx.strokeStyle='rgba(240,217,160,.5)'; ctx.lineWidth=Math.max(0.6,r.w*0.3); strokePoly(scr);
+  ctx.save();
+
+  // 计算路径总长以均匀布峰
+  let totalLen=0;
+  const segLens=[];
+  for(let i=1;i<scr.length;i++){
+    const dx=scr[i][0]-scr[i-1][0], dy=scr[i][1]-scr[i-1][1];
+    const l=Math.sqrt(dx*dx+dy*dy);
+    segLens.push(l); totalLen+=l;
+  }
+
+  const baseH=r.width*0.42;
+  const numPeaks=Math.max(6, Math.floor(totalLen/(baseH*1.05)));
+
+  for(let pi=0;pi<=numPeaks;pi++){
+    const target=(pi/numPeaks)*totalLen;
+    let traveled=0, cx=scr[0][0], cy=scr[0][1];
+    for(let i=1;i<scr.length;i++){
+      if(traveled+segLens[i-1]>=target||i===scr.length-1){
+        const t=segLens[i-1]>0?Math.min(1,(target-traveled)/segLens[i-1]):0;
+        cx=scr[i-1][0]+(scr[i][0]-scr[i-1][0])*t;
+        cy=scr[i-1][1]+(scr[i][1]-scr[i-1][1])*t;
+        break;
+      }
+      traveled+=segLens[i-1];
+    }
+
+    // 随机抖动（确定性 rnd 保持帧一致）
+    const jx=(rnd()-0.5)*baseH*0.55;
+    const jy=(rnd()-0.5)*baseH*0.22;
+    const h =baseH*(0.70+rnd()*0.62);
+    const w =h*(0.54+rnd()*0.18);
+
+    ctx.save();
+    ctx.translate(cx+jx, cy+jy);
+
+    // 后景小峰（错落层次）
+    if(rnd()>0.36){
+      const sh=h*(0.46+rnd()*0.34), sw=sh*0.56;
+      const sox=(rnd()>0.5?1:-1)*w*(0.44+rnd()*0.44);
+      ctx.beginPath();
+      ctx.moveTo(sox,-sh); ctx.lineTo(sox-sw/2,0); ctx.lineTo(sox+sw/2,0);
+      ctx.closePath();
+      ctx.fillStyle=hexA(r.tone, 0.20+rnd()*0.12);
+      ctx.fill();
+    }
+
+    // 主峰体（线性渐变：雪顶→山色→山脚）
+    ctx.beginPath();
+    ctx.moveTo(0,-h); ctx.lineTo(-w/2,0); ctx.lineTo(w/2,0);
+    ctx.closePath();
+    const pg=ctx.createLinearGradient(0,-h,0,0);
+    pg.addColorStop(0,'rgba(230,234,220,0.84)');
+    pg.addColorStop(0.26,hexA(r.tone,0.78));
+    pg.addColorStop(1,hexA(r.tone,0.38));
+    ctx.fillStyle=pg;
+    ctx.fill();
+
+    // 右坡阴影（立体感）
+    ctx.beginPath();
+    ctx.moveTo(0,-h); ctx.lineTo(w*0.06,-h*0.36); ctx.lineTo(w/2,0);
+    ctx.closePath();
+    ctx.fillStyle='rgba(0,0,0,0.16)';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   ctx.restore();
 }
+
+/* ---------- 河流：三层精细叠渲（细腻不臃肿）---------- */
+function drawRiver(r){
+  const scr=r.pts.map(p=>proj(p[0],p[1]));
+  ctx.save();
+  ctx.lineCap='round'; ctx.lineJoin='round';
+
+  // 环境晕（窄，仅作氛围）
+  ctx.globalAlpha=0.13;
+  ctx.strokeStyle='#90ddf0'; ctx.lineWidth=r.w*4.5;
+  strokeSpline(scr);
+
+  // 水体主色（青绿，近传统矿物色）
+  ctx.globalAlpha=0.86;
+  ctx.strokeStyle='#2e8fa6'; ctx.lineWidth=r.w*1.6;
+  strokeSpline(scr);
+
+  // 高光芯线
+  ctx.globalAlpha=0.52;
+  ctx.strokeStyle='#84d4e5'; ctx.lineWidth=r.w*0.32;
+  strokeSpline(scr);
+
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
+
+/* ---------- 湖泊：深浅渐变 + 同心水波 + 顶光光斑 ---------- */
 function drawLake(l){
   const c=proj(l.cx,l.cy);
   const e=proj(l.cx+l.rx,l.cy), n=proj(l.cx,l.cy+l.ry);
   const rx=Math.abs(e[0]-c[0]), ry=Math.abs(n[1]-c[1]);
+  const rm=Math.max(rx,ry);
   ctx.save();
   ctx.translate(c[0],c[1]);
-  const g=ctx.createRadialGradient(0,0,1,0,0,Math.max(rx,ry));
-  g.addColorStop(0,'#3f93ad'); g.addColorStop(1,'#2a5f78');
+
+  // 环境光晕
+  const glow=ctx.createRadialGradient(0,0,0,0,0,rm*2.2);
+  glow.addColorStop(0,'rgba(79,178,206,.20)');
+  glow.addColorStop(1,'rgba(79,178,206,0)');
+  ctx.fillStyle=glow;
+  ctx.beginPath(); ctx.ellipse(0,0,rm*2.2,rm*1.4,0,0,6.28); ctx.fill();
+
+  // 主水体（深浅径向渐变，高光偏左上）
+  const g=ctx.createRadialGradient(-rx*.22,-ry*.28,0,0,0,rm);
+  g.addColorStop(0,'#62cce0');
+  g.addColorStop(0.4,'#3b98b8');
+  g.addColorStop(1,'#1d5e78');
   ctx.fillStyle=g;
   ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,6.28); ctx.fill();
-  ctx.strokeStyle='rgba(240,217,160,.6)'; ctx.lineWidth=1.2;
+
+  // 同心水波纹
+  for(let i=1;i<=4;i++){
+    const t=i/5;
+    ctx.strokeStyle=`rgba(195,238,250,${0.18-t*0.03})`;
+    ctx.lineWidth=0.75;
+    ctx.beginPath();
+    ctx.ellipse(0,0,rx*t*.88,ry*t*.88,0,0,6.28);
+    ctx.stroke();
+  }
+
+  // 鎏金边
+  ctx.strokeStyle='rgba(240,217,160,.72)'; ctx.lineWidth=1.4;
   ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,6.28); ctx.stroke();
+
+  // 左上顶光光斑
+  const glint=ctx.createRadialGradient(-rx*.30,-ry*.30,0,-rx*.30,-ry*.30,rm*.48);
+  glint.addColorStop(0,'rgba(255,255,255,.32)');
+  glint.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=glint;
+  ctx.beginPath();
+  ctx.ellipse(-rx*.30,-ry*.30,rx*.48,ry*.48,0,0,6.28);
+  ctx.fill();
+
   ctx.restore();
 }
+
 // hex + alpha 工具
 function hexA(hex,a){
   const n=parseInt(hex.slice(1),16);
@@ -325,29 +540,84 @@ function showCard(d, kind){
   document.getElementById('cardCoord').textContent =
     `经度 ${d.lng.toFixed(4)}°E   纬度 ${d.lat.toFixed(4)}°N`;
 
-  // 数据条（占位：等真实气候/人口/耕地数据替换）
   const bars = document.getElementById('dataBars');
-  if(kind==='town'){
-    // 用经纬度做伪随机演示值，待真实数据替换
-    const seed = (d.lng*7 + d.lat*13) % 1;
-    const pop  = Math.round(20 + ((d.lng*31)%1)*78);
-    const farm = Math.round(15 + ((d.lat*47)%1)*80);
-    const water= Math.round(25 + ((seed*1000)%1*0+((d.lng*53)%1))*70);
-    bars.innerHTML = barRow('人口规模', pop, '〔示例〕') +
-                     barRow('耕地垦殖', farm, '〔示例〕') +
-                     barRow('水源丰度', water, '〔示例〕');
-  } else {
-    bars.innerHTML = `<div style="font-size:13px;color:#5c4322;line-height:1.9">
-      <div>类型：${d.type||'—'}</div>
-      <div>地址：${d.addr||'—'}</div>
-      <div>批次：${d.batch||'—'}</div></div>`;
-  }
+  const at   = document.getElementById('ancientText');
+  const sec1 = document.getElementById('cardSec1');
+  const sec2 = document.getElementById('cardSec2');
 
-  // 古籍段落（占位）
-  const at = document.getElementById('ancientText');
-  at.innerHTML = `<p class="placeholder">〔 ${d.name} · ${d.era} 〕<br/>
-    此处将载录该地对应年代之史志原文（如《汉书·西域传》《大唐西域记》《西域水道记》等）。
-    提供古籍文字数据后，将自动按「城镇名＋年代」匹配填充于此，并以竖排呈现。</p>`;
+  if(kind === 'town'){
+    sec1.textContent = '舆地数据';
+    sec2.textContent = '古籍载录';
+    // 查询古籍文本 —— 先精确匹配，再尝试去尾字规范化
+    const texts = window.__TOWN_TEXTS__;
+    let textData = null;
+    if(texts){
+      const exactKey = d.era + '|' + d.name;
+      textData = texts[exactKey] || null;
+      if(!textData){
+        const stripped = d.name.replace(/[国城郡部]$/, '');
+        if(stripped !== d.name){
+          textData = texts[d.era + '|' + stripped] || null;
+        }
+      }
+    }
+
+    if(textData){
+      // 数据条区域：人口 + 景观产业 以行文格式展示
+      let barsHtml = '';
+      if(textData.population){
+        barsHtml += `<div class="info-row"><span class="info-label">人口</span><span class="info-val">${textData.population}</span></div>`;
+      }
+      if(textData.products){
+        barsHtml += `<div class="info-row"><span class="info-label">产业</span><span class="info-val">${textData.products}</span></div>`;
+      }
+      if(!barsHtml){
+        barsHtml = '<p class="placeholder">〔暂无人口与产业记载〕</p>';
+      }
+      bars.innerHTML = barsHtml;
+
+      // 古籍载录区域：来源书目 + 地理描述
+      const srcTitles = (textData.sources || []).join('　');
+      const geoText   = textData.geo || '';
+      let atHtml = '';
+      if(srcTitles){
+        atHtml += `<div class="source-title">${srcTitles}</div>`;
+      }
+      if(geoText){
+        atHtml += `<p class="ancient-passage">${geoText}</p>`;
+      } else {
+        atHtml += '<p class="placeholder">〔该书目暂无地理描述〕</p>';
+      }
+      at.innerHTML = atHtml;
+
+    } else {
+      // 无匹配文本
+      bars.innerHTML = '<p class="placeholder">〔暂无载录〕</p>';
+      if(d.era === '现代'){
+        at.innerHTML = '<p class="placeholder">〔现代城市〕此为现代地名标注，暂无对应古籍载录。</p>';
+      } else {
+        at.innerHTML = '<p class="placeholder">〔暂无载录〕此地名暂未在已录入的古籍中找到对应条目。</p>';
+      }
+    }
+
+  } else {
+    // 文保单位：完整属性表
+    sec1.textContent = '文保信息';
+    sec2.textContent = '普查说明';
+    function infoRow(label, val){
+      if(!val && val !== 0) return '';
+      return `<div class="info-row"><span class="info-label">${label}</span><span class="info-val">${val}</span></div>`;
+    }
+    bars.innerHTML =
+      infoRow('文物类型', d.type   || '—') +
+      infoRow('保护批次', d.batch  || '—') +
+      infoRow('所在城市', d.city   || '—') +
+      infoRow('所在区县', d.county || '—') +
+      infoRow('详细地址', d.addr   || '—') +
+      (d.remark ? infoRow('备注', d.remark) : '');
+
+    at.innerHTML = '<p style="font-size:13px;color:#7a6342;line-height:1.8;font-style:italic;">文物保护单位不附古籍载录。详情请参阅新疆文物局历次普查公布文件。</p>';
+  }
 }
 function barRow(label,val,tag){
   return `<div class="bar-row">
