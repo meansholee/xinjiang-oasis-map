@@ -13,6 +13,7 @@ let TOWNS = [], RELICS = [];
 let GEO_FULL = null, GEO_BORDER = null;
 let curEra = 0;
 let playing = false, playTimer = null;
+let showTown = true;
 let showRelic = true;
 
 const stage   = document.getElementById('stage');
@@ -26,7 +27,25 @@ let projection;
 // 背景图预加载（file:// 离线可用）
 const bgImage = new Image();
 bgImage.onload = () => { if(projection){ drawBase(); startBgAnim(); } };
-bgImage.src = 'bg2.png';
+bgImage.src = 'art/bg2.png';
+
+/* 手绘地形素材（按海拔/类型选用）+ 纸纹底图 —— 加载后重绘底图 */
+const TERRAIN = {};
+const TERRAIN_SRC = {
+  low:  'art/小山_中式手绘.png',   // 低海拔山脉
+  high: 'art/高山_中式手绘.png',   // 高海拔山脉
+  snow: 'art/雪山_中式手绘.png',   // 常年积雪山脉
+  river:'art/河流_中式手绘.png',   // 河流
+  lake: 'art/湖泊_中式手绘.png',   // 湖泊
+  paper:'art/底纹.jpg'             // 新疆境内底纹
+};
+Object.keys(TERRAIN_SRC).forEach(k=>{
+  const im = new Image();
+  im.onload = () => { if(projection) drawBase(); };
+  im.src = TERRAIN_SRC[k];
+  TERRAIN[k] = im;
+});
+function imgReady(im){ return im && im.complete && im.naturalWidth > 0; }
 
 // 独立背景 canvas（用于流动动画，与主地图分层）
 const bgCanvas = document.getElementById('bgCanvas');
@@ -87,6 +106,16 @@ function setupProjection(){
   projection = p;
 }
 function proj(lng,lat){ return projection([lng,lat]); }
+/* 每经度对应的屏幕像素（用于按地理尺度缩放手绘素材，随缩放/窗口自适应）*/
+function pxPerDeg(){ const a=proj(82,42), b=proj(83,42); return Math.abs(b[0]-a[0]); }
+/* 以 cover 方式把图片铺满目标矩形（保持纵横比，居中裁切）*/
+function drawImageCover(img,dx,dy,dw,dh){
+  const ir=img.naturalWidth/img.naturalHeight, dr=dw/dh;
+  let sw,sh,sx,sy;
+  if(ir>dr){ sh=img.naturalHeight; sw=sh*dr; sx=(img.naturalWidth-sw)/2; sy=0; }
+  else     { sw=img.naturalWidth;  sh=sw/dr; sx=0; sy=(img.naturalHeight-sh)/2; }
+  ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh);
+}
 
 /* ---------- 画布尺寸 ---------- */
 function resize(){
@@ -99,6 +128,34 @@ function resize(){
   setupProjection();
   drawBase();
   renderPoints();
+  syncZoomExtent();
+}
+
+/* ---------- 地图模块：滚轮缩放 + 左键拖动平移（仅 #mapPan，UI 固定）---------- */
+let zoomBehavior = null;
+function setupZoom(){
+  const mapPan = document.getElementById('mapPan');
+  if(!mapPan || zoomBehavior) return;
+  zoomBehavior = d3.zoom()
+    .scaleExtent([1, 6])
+    .translateExtent([[0,0],[W,H]])
+    // 滚轮始终缩放；拖拽平移仅从非要素(空白地图)处开始，避免与城镇点点击冲突
+    .filter(ev => ev.type==='wheel' || (!ev.button && !(ev.target.closest && ev.target.closest('.hit'))))
+    .on('zoom', ev=>{
+      const t = ev.transform;
+      mapPan.style.transform = `translate(${t.x}px,${t.y}px) scale(${t.k})`;
+    })
+    .on('start', ()=> mapPan.classList.add('grabbing'))
+    .on('end',   ()=> mapPan.classList.remove('grabbing'));
+  d3.select(mapPan).call(zoomBehavior);
+}
+function syncZoomExtent(){
+  if(!zoomBehavior) return;
+  const mapPan = document.getElementById('mapPan');
+  zoomBehavior.translateExtent([[0,0],[W,H]]);
+  // 尺寸变化后重置变换，保证与重绘后的底图对齐
+  d3.select(mapPan).call(zoomBehavior.transform, d3.zoomIdentity);
+  mapPan.style.transform = '';
 }
 
 /* ============================================================
@@ -185,12 +242,14 @@ const LAKES = [
   {name:'赛里木湖', cx:81.22, cy:44.58, rx:0.15, ry:0.11}
 ];
 
-// 山脉脊线（天山、昆仑、阿尔泰）— 用于地形阴影
+// 山脉脊线（天山、昆仑、阿尔泰、阿尔金）
+//   elev：代表海拔(0~1)，决定选用 小山/高山/雪山 素材与尺寸
+//   arid：干旱少雪山脉（如阿尔金山）不使用雪山素材
 const RANGES = [
-  {name:'阿尔泰山', pts:[[85.8,48.8],[87.5,48.2],[89.5,47.8],[90.8,47.2]], width:34, tone:'#5b7a6a'},
-  {name:'天山',     pts:[[78.0,42.2],[80.5,42.6],[83.0,43.2],[85.5,43.4],[88.0,43.3],[90.5,43.1],[93.0,42.6]], width:46, tone:'#4a6b78'},
-  {name:'昆仑山',   pts:[[76.5,36.2],[79.0,36.4],[82.0,36.6],[85.0,36.8],[88.0,37.2],[91.0,37.6]], width:40, tone:'#3f5d70'},
-  {name:'阿尔金山', pts:[[88.0,38.4],[90.0,38.0],[92.0,37.6],[93.5,37.2]], width:30, tone:'#46606e'}
+  {name:'阿尔泰山', elev:0.62, arid:false, pts:[[85.8,48.8],[87.5,48.2],[89.5,47.8],[90.8,47.2]]},
+  {name:'天山',     elev:0.86, arid:false, pts:[[78.0,42.2],[80.5,42.6],[83.0,43.2],[85.5,43.4],[88.0,43.3],[90.5,43.1],[93.0,42.6]]},
+  {name:'昆仑山',   elev:0.93, arid:false, pts:[[76.5,36.2],[79.0,36.4],[82.0,36.6],[85.0,36.8],[88.0,37.2],[91.0,37.6]]},
+  {name:'阿尔金山', elev:0.66, arid:true,  pts:[[88.0,38.4],[90.0,38.0],[92.0,37.6],[93.5,37.2]]}
 ];
 
 function drawBase(){
@@ -228,16 +287,35 @@ function drawBase(){
   tracePath(GEO_BORDER);
   ctx.clip();
 
-  // 3a) 两大盆地（塔里木 / 准噶尔）—— 沙金色洼地
-  paintBasin(85.0, 39.2, 7.8, 2.6, '#e9c87f', '#d8a857');   // 塔克拉玛干/塔里木盆地
-  paintBasin(86.5, 45.3, 4.2, 1.9, '#e3c98e', '#cdb072');   // 准噶尔盆地
+  // 3·0) 海拔设色底图（hypsometric）：黄绿中间调为基底，
+  //      盆地/低地向背景深褐过渡，山脊向雪顶米白提亮 → 深浅渐变、与山河素材自然衔接
+  ctx.fillStyle = '#ada35a';                 // 中海拔 黄绿基调
+  ctx.fillRect(0, 0, W, H);
 
-  // 3b) 山脉地形（青绿黛染，带脊线高光）
-  RANGES.forEach(drawRange);
+  // 低地 / 盆地：径向沉降到接近背景的深褐
+  paintLow(83.2, 39.0, 8.8, 3.1, '#3f2c0e');  // 塔里木盆地（最低、最暗）
+  paintLow(86.6, 45.2, 5.0, 2.3, '#54401c');  // 准噶尔盆地
+  paintLow(88.6, 42.6, 2.6, 1.2, '#4a3414');  // 吐鲁番—哈密低地（吐鲁番为我国最低）
+  paintLow(80.4, 40.9, 2.6, 1.0, '#5c4720');  // 塔里木河谷低地
 
-  // 3c) 河流（青金石蓝，描金边）
+  // 高地 / 山脊：沿脊线提亮到米白（亮度随海拔），为手绘山峦铺底
+  RANGES.forEach(paintHigh);
+
+  // 纸纹肌理（柔光叠加，仅保留手工纸质感，不夺色）
+  if(imgReady(TERRAIN.paper)){
+    ctx.save();
+    ctx.globalAlpha = 0.30;
+    ctx.globalCompositeOperation = 'soft-light';
+    drawImageCover(TERRAIN.paper, 0, 0, W, H);
+    ctx.restore();
+  }
+
+  // 3b) 水系先行（河流、湖泊用手绘素材沿真实地理铺设）
   RIVERS.forEach(drawRiver);
   LAKES.forEach(drawLake);
+
+  // 3c) 山脉地形：沿脊线堆叠手绘山峦素材（按海拔选用小山/高山/雪山）
+  RANGES.forEach(drawRange);
 
   // 3d) 宣纸噪点 + 皴擦肌理
   ctx.globalAlpha=1;
@@ -271,7 +349,7 @@ function drawBase(){
   ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);
 }
 
-// 盆地：以地理中心向外的径向渐变洼地
+// 盆地：以地理中心向外的径向渐变洼地（旧版，保留备用）
 function paintBasin(lng,lat,wDeg,hDeg,c1,c2){
   const c=proj(lng,lat);
   const e=proj(lng+wDeg,lat), n=proj(lng,lat+hDeg);
@@ -283,6 +361,50 @@ function paintBasin(lng,lat,wDeg,hDeg,c1,c2){
   ctx.fillStyle=g;
   ctx.beginPath(); ctx.arc(0,0,rx,0,6.28); ctx.fill();
   ctx.restore();
+}
+
+// 低地设色：地理椭圆范围内由中心(深褐)向外渐隐，压暗成洼地
+function paintLow(lng,lat,wDeg,hDeg,color){
+  const c=proj(lng,lat);
+  const e=proj(lng+wDeg,lat), n=proj(lng,lat+hDeg);
+  const rx=Math.abs(e[0]-c[0]), ry=Math.abs(n[1]-c[1]);
+  if(rx<1) return;
+  ctx.save();
+  ctx.translate(c[0],c[1]); ctx.scale(1, ry/rx);
+  const g=ctx.createRadialGradient(0,0,0,0,0,rx);
+  g.addColorStop(0,    color);
+  g.addColorStop(0.55, hexA(color,0.6));
+  g.addColorStop(1,    hexA(color,0));
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(0,0,rx,0,6.28); ctx.fill();
+  ctx.restore();
+}
+
+// 高地设色：沿山脊线叠加柔光圆斑提亮（亮度/范围随海拔 elev），与手绘山峦衔接
+function paintHigh(r){
+  const scr=r.pts.map(p=>proj(p[0],p[1]));
+  let total=0; const segs=[];
+  for(let i=1;i<scr.length;i++){ const l=Math.hypot(scr[i][0]-scr[i-1][0],scr[i][1]-scr[i-1][1]); segs.push(l); total+=l; }
+  if(total<1) return;
+  const R     = pxPerDeg()*(0.85 + r.elev*1.5);   // 海拔越高，提亮范围越大
+  const step  = R*0.42;
+  const n     = Math.max(2, Math.round(total/step));
+  const tone  = r.arid ? '226,212,158' : '240,236,212'; // 干旱山脉偏黄，常雪山脉偏米白
+  const aPeak = 0.28 + r.elev*0.5;                 // 海拔越高越亮
+  for(let k=0;k<=n;k++){
+    const target=(k/n)*total;
+    let trav=0, idx=1;
+    for(; idx<scr.length; idx++){ if(trav+segs[idx-1]>=target || idx===scr.length-1) break; trav+=segs[idx-1]; }
+    const t=segs[idx-1]>0?Math.min(1,(target-trav)/segs[idx-1]):0;
+    const x=scr[idx-1][0]+(scr[idx][0]-scr[idx-1][0])*t;
+    const y=scr[idx-1][1]+(scr[idx][1]-scr[idx-1][1])*t;
+    const g=ctx.createRadialGradient(x,y,0,x,y,R);
+    g.addColorStop(0,   `rgba(${tone},${aPeak})`);
+    g.addColorStop(0.5, `rgba(${tone},${aPeak*0.42})`);
+    g.addColorStop(1,   `rgba(${tone},0)`);
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(x,y,R,0,6.28); ctx.fill();
+  }
 }
 
 /* ---------- Catmull-Rom 三次样条（平滑折线） ----------
@@ -307,112 +429,154 @@ function strokeSpline(pts){
 }
 const strokePoly = strokeSpline; // 向后兼容
 
-/* ---------- 山脉：舆图三角山峰图标风格 ----------
-   沿脊线均匀布置三角形山头（带后景小峰 + 阴影侧面），
-   取代原来的粗 stroke 画管效果 */
+/* ---------- 山脉：沿脊线堆叠手绘山峦素材 ----------
+   遍历脊线坐标 → Projection 取平面位置 → 依海拔(elev)选用
+   小山/高山/雪山素材，按经纬尺度(pxPerDeg)与海拔自动缩放，
+   重叠堆叠形成连绵山体；缺素材时回退到三角山峰矢量绘制。 */
+function tierFor(e, arid){
+  if(!arid && e >= 0.74) return 'snow';
+  if(e >= 0.46) return 'high';
+  return 'low';
+}
 function drawRange(r){
-  const scr=r.pts.map(p=>proj(p[0],p[1]));
-  ctx.save();
-
-  // 计算路径总长以均匀布峰
-  let totalLen=0;
-  const segLens=[];
+  const scr = r.pts.map(p=>proj(p[0],p[1]));
+  // 脊线分段长度
+  let totalLen = 0; const segLens = [];
   for(let i=1;i<scr.length;i++){
-    const dx=scr[i][0]-scr[i-1][0], dy=scr[i][1]-scr[i-1][1];
-    const l=Math.sqrt(dx*dx+dy*dy);
-    segLens.push(l); totalLen+=l;
+    const l = Math.hypot(scr[i][0]-scr[i-1][0], scr[i][1]-scr[i-1][1]);
+    segLens.push(l); totalLen += l;
   }
+  if(totalLen < 1) return;
 
-  const baseH=r.width*0.42;
-  const numPeaks=Math.max(6, Math.floor(totalLen/(baseH*1.05)));
+  const ppd   = pxPerDeg();
+  const baseW = ppd * (1.45 + r.elev*1.35);   // 海拔越高山体越大
+  const step  = baseW * 0.46;                  // 步距 < 山体宽 → 重叠堆叠
+  const count = Math.max(3, Math.round(totalLen/step));
 
-  for(let pi=0;pi<=numPeaks;pi++){
-    const target=(pi/numPeaks)*totalLen;
+  // 采样脊线站点 + 每点的素材/尺寸（确定性随机，重绘稳定）
+  const stamps = [];
+  for(let pi=0; pi<=count; pi++){
+    const target = (pi/count) * totalLen;
     let traveled=0, cx=scr[0][0], cy=scr[0][1];
     for(let i=1;i<scr.length;i++){
-      if(traveled+segLens[i-1]>=target||i===scr.length-1){
-        const t=segLens[i-1]>0?Math.min(1,(target-traveled)/segLens[i-1]):0;
-        cx=scr[i-1][0]+(scr[i][0]-scr[i-1][0])*t;
-        cy=scr[i-1][1]+(scr[i][1]-scr[i-1][1])*t;
+      if(traveled+segLens[i-1] >= target || i===scr.length-1){
+        const t = segLens[i-1]>0 ? Math.min(1,(target-traveled)/segLens[i-1]) : 0;
+        cx = scr[i-1][0] + (scr[i][0]-scr[i-1][0])*t;
+        cy = scr[i-1][1] + (scr[i][1]-scr[i-1][1])*t;
         break;
       }
-      traveled+=segLens[i-1];
+      traveled += segLens[i-1];
     }
-
-    // 随机抖动（确定性 rnd 保持帧一致）
-    const jx=(rnd()-0.5)*baseH*0.55;
-    const jy=(rnd()-0.5)*baseH*0.22;
-    const h =baseH*(0.70+rnd()*0.62);
-    const w =h*(0.54+rnd()*0.18);
-
-    ctx.save();
-    ctx.translate(cx+jx, cy+jy);
-
-    // 后景小峰（错落层次）
-    if(rnd()>0.36){
-      const sh=h*(0.46+rnd()*0.34), sw=sh*0.56;
-      const sox=(rnd()>0.5?1:-1)*w*(0.44+rnd()*0.44);
-      ctx.beginPath();
-      ctx.moveTo(sox,-sh); ctx.lineTo(sox-sw/2,0); ctx.lineTo(sox+sw/2,0);
-      ctx.closePath();
-      ctx.fillStyle=hexA(r.tone, 0.20+rnd()*0.12);
-      ctx.fill();
-    }
-
-    // 主峰体（线性渐变：雪顶→山色→山脚）
-    ctx.beginPath();
-    ctx.moveTo(0,-h); ctx.lineTo(-w/2,0); ctx.lineTo(w/2,0);
-    ctx.closePath();
-    const pg=ctx.createLinearGradient(0,-h,0,0);
-    pg.addColorStop(0,'rgba(230,234,220,0.84)');
-    pg.addColorStop(0.26,hexA(r.tone,0.78));
-    pg.addColorStop(1,hexA(r.tone,0.38));
-    ctx.fillStyle=pg;
-    ctx.fill();
-
-    // 右坡阴影（立体感）
-    ctx.beginPath();
-    ctx.moveTo(0,-h); ctx.lineTo(w*0.06,-h*0.36); ctx.lineTo(w/2,0);
-    ctx.closePath();
-    ctx.fillStyle='rgba(0,0,0,0.16)';
-    ctx.fill();
-
-    ctx.restore();
+    const e     = Math.max(0, Math.min(1, r.elev + (rnd()-0.5)*0.26));
+    const tier  = tierFor(e, r.arid);
+    const sizeF = 0.80 + e*0.46 + (rnd()-0.5)*0.16;
+    const w     = baseW * sizeF;
+    const jx    = (rnd()-0.5) * baseW * 0.20;
+    const jy    = (rnd()-0.5) * baseW * 0.10;
+    const flip  = rnd() > 0.5;
+    const alpha = 0.9 + rnd()*0.1;
+    stamps.push({x:cx+jx, y:cy+jy, w, tier, flip, alpha});
   }
 
+  // 由远及近（y 小者偏远先画）形成自然遮挡层次
+  stamps.sort((a,b)=>a.y - b.y);
+
+  const anchorY = 0.78;  // 素材中山体基线约在 78% 高度 → 落在脊线上
+  ctx.save();
+  stamps.forEach(s=>{
+    const im = TERRAIN[s.tier];
+    if(!imgReady(im)){ drawPeakVector(s); return; }   // 素材未就绪时回退
+    const ar = im.naturalHeight / im.naturalWidth;
+    const w = s.w, h = w*ar;
+    ctx.save();
+    ctx.globalAlpha = s.alpha;
+    ctx.translate(s.x, s.y);
+    if(s.flip) ctx.scale(-1,1);
+    ctx.drawImage(im, -w/2, -h*anchorY, w, h);
+    ctx.restore();
+  });
+  ctx.restore();
+}
+/* 素材未加载时的临时三角山峰（保证不空白）*/
+function drawPeakVector(s){
+  const h = s.w*0.5, w = s.w*0.4;
+  ctx.save();
+  ctx.translate(s.x, s.y); ctx.globalAlpha = s.alpha*0.6;
+  ctx.beginPath(); ctx.moveTo(0,-h); ctx.lineTo(-w/2,0); ctx.lineTo(w/2,0); ctx.closePath();
+  const pg = ctx.createLinearGradient(0,-h,0,0);
+  pg.addColorStop(0,'rgba(230,234,220,0.7)');
+  pg.addColorStop(1,'rgba(74,107,120,0.4)');
+  ctx.fillStyle = pg; ctx.fill();
   ctx.restore();
 }
 
-/* ---------- 河流：三层精细叠渲（细腻不臃肿）---------- */
+/* ---------- 河流：手绘素材沿真实河道作"笔刷"铺设 ----------
+   取素材中心一段青绿描金纹理，沿脊/河线分段旋转贴合切向、重叠铺成连续河带。
+   素材未就绪时回退到矢量三层叠渲。 */
 function drawRiver(r){
-  const scr=r.pts.map(p=>proj(p[0],p[1]));
+  const scr = r.pts.map(p=>proj(p[0],p[1]));
+  const im = TERRAIN.river;
+  if(!imgReady(im)){ drawRiverVector(r, scr); return; }
+
+  // 河宽（像素）；中心裁切避开素材四角透明区
+  const halfW = r.w * 3.2;
+  const sx=im.naturalWidth*0.30, sy=im.naturalHeight*0.26,
+        sw=im.naturalWidth*0.40, sh=im.naturalHeight*0.46;
+
+  let totalLen=0; const segLens=[];
+  for(let i=1;i<scr.length;i++){ const l=Math.hypot(scr[i][0]-scr[i-1][0],scr[i][1]-scr[i-1][1]); segLens.push(l); totalLen+=l; }
+  if(totalLen<1) return;
+
+  const stampLen = halfW * 3.4;       // 每段笔刷长度
+  const step     = stampLen * 0.42;   // 重叠步距
+  const n        = Math.max(2, Math.round(totalLen/step));
+
+  ctx.save();
+  ctx.globalAlpha = 0.92;
+  for(let k=0;k<=n;k++){
+    const target=(k/n)*totalLen;
+    let traveled=0, idx=1;
+    for(; idx<scr.length; idx++){ if(traveled+segLens[idx-1]>=target || idx===scr.length-1) break; traveled+=segLens[idx-1]; }
+    const t = segLens[idx-1]>0 ? Math.min(1,(target-traveled)/segLens[idx-1]) : 0;
+    const x = scr[idx-1][0] + (scr[idx][0]-scr[idx-1][0])*t;
+    const y = scr[idx-1][1] + (scr[idx][1]-scr[idx-1][1])*t;
+    const ang = Math.atan2(scr[idx][1]-scr[idx-1][1], scr[idx][0]-scr[idx-1][0]);
+    ctx.save();
+    ctx.translate(x,y); ctx.rotate(ang);
+    ctx.drawImage(im, sx,sy,sw,sh, -stampLen/2, -halfW, stampLen, halfW*2);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+/* 河流矢量回退（素材未加载时）*/
+function drawRiverVector(r, scr){
   ctx.save();
   ctx.lineCap='round'; ctx.lineJoin='round';
-
-  // 环境晕（窄，仅作氛围）
-  ctx.globalAlpha=0.13;
-  ctx.strokeStyle='#90ddf0'; ctx.lineWidth=r.w*4.5;
-  strokeSpline(scr);
-
-  // 水体主色（青绿，近传统矿物色）
-  ctx.globalAlpha=0.86;
-  ctx.strokeStyle='#2e8fa6'; ctx.lineWidth=r.w*1.6;
-  strokeSpline(scr);
-
-  // 高光芯线
-  ctx.globalAlpha=0.52;
-  ctx.strokeStyle='#84d4e5'; ctx.lineWidth=r.w*0.32;
-  strokeSpline(scr);
-
-  ctx.globalAlpha=1;
-  ctx.restore();
+  ctx.globalAlpha=0.13; ctx.strokeStyle='#90ddf0'; ctx.lineWidth=r.w*4.5; strokeSpline(scr);
+  ctx.globalAlpha=0.86; ctx.strokeStyle='#2e8fa6'; ctx.lineWidth=r.w*1.6; strokeSpline(scr);
+  ctx.globalAlpha=0.52; ctx.strokeStyle='#84d4e5'; ctx.lineWidth=r.w*0.32; strokeSpline(scr);
+  ctx.globalAlpha=1; ctx.restore();
 }
 
-/* ---------- 湖泊：深浅渐变 + 同心水波 + 顶光光斑 ---------- */
+/* ---------- 湖泊：手绘湖泊素材按地理范围缩放贴放 ---------- */
 function drawLake(l){
   const c=proj(l.cx,l.cy);
   const e=proj(l.cx+l.rx,l.cy), n=proj(l.cx,l.cy+l.ry);
   const rx=Math.abs(e[0]-c[0]), ry=Math.abs(n[1]-c[1]);
+  const im=TERRAIN.lake;
+  if(imgReady(im)){
+    // 素材中水面约占宽度 ~72% → 放大让水面覆盖湖泊范围
+    const w=Math.max(rx*2, ry*2)*1.9, h=w*(im.naturalHeight/im.naturalWidth);
+    ctx.save();
+    ctx.globalAlpha=0.96;
+    ctx.drawImage(im, c[0]-w/2, c[1]-h/2, w, h);
+    ctx.restore();
+    return;
+  }
+  drawLakeVector(l,c,rx,ry);
+}
+/* 湖泊矢量回退（素材未加载时）*/
+function drawLakeVector(l,c,rx,ry){
   const rm=Math.max(rx,ry);
   ctx.save();
   ctx.translate(c[0],c[1]);
@@ -471,7 +635,7 @@ function townsOfEra(i){ return TOWNS.filter(t=>t.eraIndex===i); }
 function relicsOfEra(i){ return RELICS.filter(r=>r.eraIndex===i); }
 
 function renderPoints(){
-  const eraTowns = townsOfEra(curEra);
+  const eraTowns = showTown ? townsOfEra(curEra) : [];
   const eraRelics = showRelic ? relicsOfEra(curEra) : [];
 
   // --- 文保点（底层，小蓝点）---
@@ -540,14 +704,23 @@ function showCard(d, kind){
   document.getElementById('cardCoord').textContent =
     `经度 ${d.lng.toFixed(4)}°E   纬度 ${d.lat.toFixed(4)}°N`;
 
-  const bars = document.getElementById('dataBars');
-  const at   = document.getElementById('ancientText');
-  const sec1 = document.getElementById('cardSec1');
-  const sec2 = document.getElementById('cardSec2');
+  const bars      = document.getElementById('dataBars');
+  const at        = document.getElementById('ancientText');
+  const sec1      = document.getElementById('cardSec1');
+  const sec2      = document.getElementById('cardSec2');
+  const sec3      = document.getElementById('cardSec3');
+  const webText   = document.getElementById('webText');
+  const webDiv    = document.getElementById('webDivider');
+
+  // 隐藏"网络资料"区块（默认）
+  sec3.style.display = 'none';
+  webText.style.display = 'none';
+  webDiv.style.display = 'none';
 
   if(kind === 'town'){
     sec1.textContent = '舆地数据';
     sec2.textContent = '古籍载录';
+
     // 查询古籍文本 —— 先精确匹配，再尝试去尾字规范化
     const texts = window.__TOWN_TEXTS__;
     let textData = null;
@@ -560,6 +733,13 @@ function showCard(d, kind){
           textData = texts[d.era + '|' + stripped] || null;
         }
       }
+    }
+
+    // 查询网络补充资料
+    const webTexts = window.__WEB_TEXTS__;
+    let webData = null;
+    if(webTexts){
+      webData = webTexts[d.era + '|' + d.name] || null;
     }
 
     if(textData){
@@ -576,7 +756,7 @@ function showCard(d, kind){
       }
       bars.innerHTML = barsHtml;
 
-      // 古籍载录区域：来源书目 + 地理描述
+      // 古籍载录区域：来源书目 + 地理描述 + 可能追加网络资料中的古典原文
       const srcTitles = (textData.sources || []).join('　');
       const geoText   = textData.geo || '';
       let atHtml = '';
@@ -588,6 +768,10 @@ function showCard(d, kind){
       } else {
         atHtml += '<p class="placeholder">〔该书目暂无地理描述〕</p>';
       }
+      // 若网络资料含古典原文，追加到古籍载录
+      if(webData && webData.classical){
+        atHtml += `<p class="ancient-passage" style="margin-top:12px;border-top:1px dashed rgba(199,154,74,.4);padding-top:10px;">${webData.classical}</p>`;
+      }
       at.innerHTML = atHtml;
 
     } else {
@@ -595,9 +779,20 @@ function showCard(d, kind){
       bars.innerHTML = '<p class="placeholder">〔暂无载录〕</p>';
       if(d.era === '现代'){
         at.innerHTML = '<p class="placeholder">〔现代城市〕此为现代地名标注，暂无对应古籍载录。</p>';
+      } else if(webData && webData.classical){
+        // 有网络古典文本，显示在古籍载录
+        at.innerHTML = `<p class="ancient-passage">${webData.classical}</p>`;
       } else {
         at.innerHTML = '<p class="placeholder">〔暂无载录〕此地名暂未在已录入的古籍中找到对应条目。</p>';
       }
+    }
+
+    // 显示"网络资料"区块（若有 summary）
+    if(webData && webData.summary){
+      sec3.style.display = '';
+      webText.style.display = '';
+      webDiv.style.display = '';
+      webText.innerHTML = `<p class="ancient-passage">${webData.summary}</p>`;
     }
 
   } else {
@@ -633,7 +828,14 @@ document.getElementById('cardClose').onclick =
 function setEra(i){
   curEra = Math.max(0, Math.min(ERA_ORDER.length-1, i));
   const name = ERA_ORDER[curEra];
-  document.getElementById('eraSlider').value = curEra;
+  // 横排纪年轨：定位金珠 + 填充（古→今，自左而右）
+  const frac = curEra / (ERA_ORDER.length - 1);
+  const bead = document.getElementById('eraBead');
+  const fill = document.getElementById('eraRailFill');
+  if(bead) bead.style.left  = (frac*100) + '%';
+  if(fill) fill.style.width = (frac*100) + '%';
+  const rail = document.getElementById('eraRail');
+  if(rail) rail.setAttribute('aria-valuetext', name);
   document.getElementById('eraName').textContent = name;
   document.getElementById('eraNameBig').textContent = name;
   const n = townsOfEra(curEra).length;
@@ -656,7 +858,31 @@ function buildTicks(){
   });
 }
 
-document.getElementById('eraSlider').oninput = e=>{ stopPlay(); setEra(+e.target.value); };
+/* 竖排纪年轨 · 点击/拖动/键盘 */
+(function eraRailCtrl(){
+  const rail = document.getElementById('eraRail');
+  if(!rail) return;
+  const N = ERA_ORDER.length;
+  let dragging = false;
+  function pick(clientX){
+    const r = rail.getBoundingClientRect();
+    let f = (clientX - r.left) / r.width;
+    f = Math.max(0, Math.min(1, f));
+    const idx = Math.round(f * (N - 1));
+    if(idx !== curEra){ stopPlay(); setEra(idx); }
+  }
+  rail.addEventListener('pointerdown', e=>{
+    dragging = true; rail.classList.add('dragging');
+    rail.setPointerCapture(e.pointerId); pick(e.clientX); e.preventDefault();
+  });
+  rail.addEventListener('pointermove', e=>{ if(dragging) pick(e.clientX); });
+  rail.addEventListener('pointerup',   ()=>{ dragging = false; rail.classList.remove('dragging'); });
+  rail.addEventListener('pointercancel',()=>{ dragging = false; rail.classList.remove('dragging'); });
+  rail.addEventListener('keydown', e=>{
+    if(e.key==='ArrowUp'||e.key==='ArrowLeft'){ stopPlay(); setEra(curEra-1); e.preventDefault(); }
+    else if(e.key==='ArrowDown'||e.key==='ArrowRight'){ stopPlay(); setEra(curEra+1); e.preventDefault(); }
+  });
+})();
 
 function startPlay(){
   playing=true; document.getElementById('playBtn').textContent='❚❚';
@@ -691,6 +917,9 @@ function spawnGlyph(text){
   });
 }
 
+document.getElementById('toggleTown').onchange=e=>{
+  showTown=e.target.checked; renderPoints();
+};
 document.getElementById('toggleRelic').onchange=e=>{
   showRelic=e.target.checked; renderPoints();
 };
@@ -707,6 +936,7 @@ document.getElementById('toggleRelic').onchange=e=>{
     GEO_FULL = window.__GEO_FULL__ || null;
     GEO_BORDER = window.__GEO_BORDER__ || null;
     buildTicks();
+    setupZoom();
     resize();
     setEra(0);
     window.addEventListener('resize', debounce(resize,200));
@@ -717,3 +947,66 @@ document.getElementById('toggleRelic').onchange=e=>{
 })();
 
 function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
+
+/* ============================================================
+   封面页 · 聚光揭示效果（原生复刻 image-reveal）+ 丝滑进入
+   ============================================================ */
+(function coverFx(){
+  const cover = document.getElementById('cover');
+  const mask  = document.getElementById('coverMask');
+  const glow  = document.getElementById('coverGlow');
+  const enter = document.getElementById('enterBtn');
+  if(!cover || !mask || !enter) return;
+
+  const MAX_R = 240, SOFT = 92;
+  let tx = innerWidth/2, ty = innerHeight/2, cx = tx, cy = ty;
+  let tr = 0, cr = 0, hovered = false, raf = null;
+  const touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+  function onMove(e){
+    const r = cover.getBoundingClientRect();
+    tx = e.clientX - r.left; ty = e.clientY - r.top;
+  }
+  function start(){ if(!raf) raf = requestAnimationFrame(frame); }
+
+  function frame(){
+    cx += (tx - cx) * 0.18;
+    cy += (ty - cy) * 0.18;
+    cr += (tr - cr) * 0.13;
+    if(cr > 1){
+      const inner = Math.max(cr - SOFT - 20, 0);
+      const g = `radial-gradient(circle ${cr}px at ${cx}px ${cy}px,`+
+        `transparent 0 ${inner}px,`+
+        `rgba(0,0,0,.12) ${Math.max(cr-SOFT,0)}px,`+
+        `rgba(0,0,0,.32) ${Math.max(cr-SOFT/1.5,0)}px,`+
+        `rgba(0,0,0,.55) ${Math.max(cr-SOFT/2,0)}px,`+
+        `rgba(0,0,0,.82) ${cr}px, #000 100%)`;
+      mask.style.webkitMaskImage = g;
+      mask.style.maskImage = g;
+      glow.style.opacity = '1';
+      glow.style.background = `radial-gradient(circle ${cr+34}px at ${cx}px ${cy}px,`+
+        `rgba(244,226,184,.20) 0, rgba(230,196,120,.10) 60%, transparent 100%)`;
+    }
+    if(hovered || cr > 0.6){
+      raf = requestAnimationFrame(frame);
+    } else {
+      raf = null;
+      mask.style.webkitMaskImage = 'none';
+      mask.style.maskImage = 'none';
+      glow.style.opacity = '0';
+    }
+  }
+
+  if(!touch){
+    cover.addEventListener('mousemove', onMove);
+    cover.addEventListener('mouseenter', ()=>{ hovered = true; tr = MAX_R; start(); });
+    cover.addEventListener('mouseleave', ()=>{ hovered = false; tr = 0; });
+  }
+
+  let entered = false;
+  enter.addEventListener('click', ()=>{
+    if(entered) return; entered = true;
+    cover.classList.add('cover-exit');
+    setTimeout(()=>{ cover.style.display = 'none'; }, 950);
+  });
+})();

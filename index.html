@@ -10,8 +10,11 @@
   <!-- 卷轴主舞台 -->
   <div id="stage">
     <canvas id="bgCanvas"></canvas>
-    <canvas id="map"></canvas>
-    <svg id="overlay"></svg>
+    <!-- 地图模块（可缩放/平移）：底图 + 要素层一起变换 -->
+    <div id="mapPan">
+      <canvas id="map"></canvas>
+      <svg id="overlay"></svg>
+    </div>
 
     <!-- 卷轴边框装饰 -->
     <div class="scroll-edge top"></div>
@@ -19,23 +22,24 @@
 
     <!-- 题跋 · 左上 -->
     <header id="titleblock">
-      <div class="seal">西<br/>域</div>
-      <div class="title-text">
-        <h1>西域绿洲</h1>
-        <p class="subtitle">时 空 舆 图</p>
-        <p class="dynasty-cn">— <span id="eraNameBig">西汉</span> —</p>
+      <img class="title-img" src="art/title.png" alt="千年绿洲" />
+      <div class="title-meta">
+        <span class="subtitle">时　空　舆　图</span>
+        <span class="era-badge" id="eraNameBig">西汉</span>
       </div>
     </header>
 
     <!-- 图例 · 右上 -->
-    <div id="legend">
+    <div id="legend" class="xy-panel">
+      <div class="legend-title">图　例</div>
       <div class="legend-row"><span class="dot town"></span>城镇 · 治所</div>
       <div class="legend-row"><span class="dot relic"></span>文保 · 古迹</div>
-      <label class="legend-toggle"><input type="checkbox" id="toggleRelic" checked /> 显示古迹层</label>
+      <label class="legend-toggle"><input type="checkbox" id="toggleTown" checked /> 显示古城邦</label>
+      <label class="legend-toggle"><input type="checkbox" id="toggleRelic" checked /> 显示遗址点</label>
     </div>
 
     <!-- 历史名片 · 右侧抽屉 -->
-    <aside id="card" class="hidden">
+    <aside id="card" class="hidden xy-panel">
       <button id="cardClose">✕</button>
       <div class="card-seal" id="cardSeal">城</div>
       <h2 id="cardName">—</h2>
@@ -49,13 +53,19 @@
       <div class="ancient-text" id="ancientText">
         <p class="placeholder">〔 待补古籍段落 〕<br/>此处将载录该城对应年代之史志原文，如《汉书·西域传》《大唐西域记》等。提供文字数据后自动填充。</p>
       </div>
+      <div class="card-divider" id="webDivider" style="display:none"></div>
+      <div class="card-section-title" id="cardSec3" style="display:none">网络资料</div>
+      <div class="ancient-text" id="webText" style="display:none"></div>
     </aside>
 
     <!-- 时间轴 · 底部 -->
-    <footer id="timeline">
+    <footer id="timeline" class="xy-panel">
       <button id="playBtn" title="自动漫游">▶</button>
       <div class="track-wrap">
-        <input type="range" id="eraSlider" min="0" max="14" step="1" value="0" />
+        <div class="era-rail" id="eraRail" role="slider" aria-label="朝代纪年" tabindex="0">
+          <div class="era-rail-fill" id="eraRailFill"></div>
+          <div class="era-bead" id="eraBead"></div>
+        </div>
         <div class="track-ticks" id="trackTicks"></div>
       </div>
       <div class="era-readout">
@@ -63,12 +73,32 @@
         <span id="eraCount" class="count">— 城</span>
       </div>
     </footer>
+
+    <!-- 封面页 · 聚光揭示 -->
+    <div id="cover">
+      <img id="coverImg" src="art/bg1.png" alt="西域绿洲" />
+      <div id="coverMask"></div>
+      <div id="coverGlow"></div>
+      <div id="coverVignette"></div>
+      <div id="coverContent">
+        <div class="cover-title-wrap">
+          <img class="cover-title-img" src="art/title.png" alt="千年绿洲" />
+          <span class="cover-stamp">西<br/>域</span>
+        </div>
+        <p class="cover-sub">时　空　舆　图</p>
+        <div class="cover-rule"></div>
+        <p class="cover-desc">两千年丝路绿洲 · 城邦治所 · 古籍载录</p>
+        <button id="enterBtn"><span>查看历史地图</span></button>
+        <p class="cover-hint">移动光标，揭开尘封舆图</p>
+      </div>
+    </div>
   </div>
 
   <script src="vendor/d3.v7.min.js"></script>
   <script src="data.js"></script>
   <script src="geo.js"></script>
   <script src="historical_texts.js"></script>
+  <script src="web_texts.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
