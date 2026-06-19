@@ -37,7 +37,8 @@ const TERRAIN_SRC = {
   snow: 'art/雪山_中式手绘.png',   // 常年积雪山脉
   river:'art/河流_中式手绘.png',   // 河流
   lake: 'art/湖泊_中式手绘.png',   // 湖泊
-  paper:'art/底纹.jpg'             // 新疆境内底纹
+  paper:'art/底纹.jpg',            // 新疆境内底纹
+  map:  'art/map.png'              // 成品地形底图
 };
 Object.keys(TERRAIN_SRC).forEach(k=>{
   const im = new Image();
@@ -89,7 +90,7 @@ function startBgAnim(){
    1. fitExtent：d3.geoBounds 用球面几何误判为「整个地球减去新疆」→ 改用手动平面 fit
    2. geoPath：d3.geoPath 内置球面反子午线裁剪同样受影响 → tracePath 改用直接投影，绕过裁剪 */
 function setupProjection(){
-  const padX = 54, padTop = 96, padBottom = 118;
+  const padX = 54, padTop = 30, padBottom = 118;  // 上边距收紧→版图上移放大，下边距不变→底部不下探（避让时间轴）
   const p = d3.geoMercator().scale(1).translate([0,0]).center([0,0]);
   const corners = [
     [GEO_BOUNDS.lng[0], GEO_BOUNDS.lat[0]],
@@ -252,101 +253,48 @@ const RANGES = [
   {name:'阿尔金山', elev:0.66, arid:true,  pts:[[88.0,38.4],[90.0,38.0],[92.0,37.6],[93.5,37.2]]}
 ];
 
+/* map.png 的纯白剪影（取其 alpha 轮廓），用于生成贴合的白边/外发光 —— 仅构建一次缓存 */
+let _mapWhite = null;
+function getMapWhite(){
+  if(_mapWhite) return _mapWhite;
+  const im = TERRAIN.map;
+  if(!imgReady(im)) return null;
+  const cv = document.createElement('canvas');
+  cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+  const c2 = cv.getContext('2d');
+  c2.drawImage(im, 0, 0);
+  c2.globalCompositeOperation = 'source-in';   // 仅保留不透明区域
+  c2.fillStyle = '#fff';
+  c2.fillRect(0, 0, cv.width, cv.height);
+  _mapWhite = cv;
+  return _mapWhite;
+}
+
 function drawBase(){
   _seed = 20260618;
   ctx.clearRect(0,0,W,H);
-
   if(!GEO_FULL){ return; }
+  if(!imgReady(TERRAIN.map)) return;
 
-  // 0) 底图由 bgCanvas 动画层承载，主 canvas 透明背景
-  // 颗粒噪点叠在主 canvas 上（位于底图与地图之间）
-  for(let i=0;i<6000;i++){
-    const x=rnd()*W, y=rnd()*H;
-    const sz=rnd()*rnd()*1.6;
-    const br=rnd();
-    if(br>0.80)      ctx.fillStyle=`rgba(255,255,255,${rnd()*0.04})`;
-    else if(br<0.10) ctx.fillStyle=`rgba(60,50,40,${rnd()*0.03})`;
-    else             ctx.fillStyle=`rgba(220,215,205,${rnd()*0.02})`;
-    ctx.beginPath(); ctx.arc(x,y,sz,0,6.28); ctx.fill();
-  }
+  const tl = proj(GEO_BOUNDS.lng[0], GEO_BOUNDS.lat[1]); // 左上：最西、最北
+  const br = proj(GEO_BOUNDS.lng[1], GEO_BOUNDS.lat[0]); // 右下：最东、最南
+  const x=tl[0], y=tl[1], w=br[0]-tl[0], h=br[1]-tl[1];
 
-  // 2) 新疆整体轮廓 → 作为「画纸」剪影（鎏金绢面）
-  ctx.save();
-  tracePath(GEO_BORDER);
-  // 投影外发光（金边晕染）
-  ctx.shadowColor='rgba(201,154,74,.55)'; ctx.shadowBlur=26;
-  const land = ctx.createLinearGradient(0,0,W,H);
-  land.addColorStop(0,'#efdcae');
-  land.addColorStop(0.5,'#e7cd92');
-  land.addColorStop(1,'#dcbd7a');
-  ctx.fillStyle=land; ctx.fill();
-  ctx.restore();
-
-  // 3) 用轮廓做裁剪，后续地形只画在新疆境内
-  ctx.save();
-  tracePath(GEO_BORDER);
-  ctx.clip();
-
-  // 3·0) 海拔设色底图（hypsometric）：黄绿中间调为基底，
-  //      盆地/低地向背景深褐过渡，山脊向雪顶米白提亮 → 深浅渐变、与山河素材自然衔接
-  ctx.fillStyle = '#ada35a';                 // 中海拔 黄绿基调
-  ctx.fillRect(0, 0, W, H);
-
-  // 低地 / 盆地：径向沉降到接近背景的深褐
-  paintLow(83.2, 39.0, 8.8, 3.1, '#3f2c0e');  // 塔里木盆地（最低、最暗）
-  paintLow(86.6, 45.2, 5.0, 2.3, '#54401c');  // 准噶尔盆地
-  paintLow(88.6, 42.6, 2.6, 1.2, '#4a3414');  // 吐鲁番—哈密低地（吐鲁番为我国最低）
-  paintLow(80.4, 40.9, 2.6, 1.0, '#5c4720');  // 塔里木河谷低地
-
-  // 高地 / 山脊：沿脊线提亮到米白（亮度随海拔），为手绘山峦铺底
-  RANGES.forEach(paintHigh);
-
-  // 纸纹肌理（柔光叠加，仅保留手工纸质感，不夺色）
-  if(imgReady(TERRAIN.paper)){
+  const white = getMapWhite();
+  if(white){
+    const pad = 3;  // 白边宽度（屏幕像素）
     ctx.save();
-    ctx.globalAlpha = 0.30;
-    ctx.globalCompositeOperation = 'soft-light';
-    drawImageCover(TERRAIN.paper, 0, 0, W, H);
+    // 白色外发光（羽化光晕）：白剪影 + 白阴影，两遍叠加；与 map.png 同一 alpha 轮廓，必然贴合
+    ctx.shadowColor = 'rgba(255,255,255,0.62)';
+    ctx.shadowBlur  = 36;
+    ctx.drawImage(white, x-pad, y-pad, w+pad*2, h+pad*2);
+    ctx.shadowBlur  = 15;
+    ctx.drawImage(white, x-pad, y-pad, w+pad*2, h+pad*2);
     ctx.restore();
   }
 
-  // 3b) 水系先行（河流、湖泊用手绘素材沿真实地理铺设）
-  RIVERS.forEach(drawRiver);
-  LAKES.forEach(drawLake);
-
-  // 3c) 山脉地形：沿脊线堆叠手绘山峦素材（按海拔选用小山/高山/雪山）
-  RANGES.forEach(drawRange);
-
-  // 3d) 宣纸噪点 + 皴擦肌理
-  ctx.globalAlpha=1;
-  for(let i=0;i<2200;i++){
-    const x=rnd()*W, y=rnd()*H, r=rnd()*1.3;
-    ctx.fillStyle=`rgba(${rnd()>0.5?'255,248,228':'120,92,48'},${rnd()*0.045})`;
-    ctx.beginPath();ctx.arc(x,y,r,0,6.28);ctx.fill();
-  }
-  ctx.restore();
-
-  // 4) 地州分区界线（淡墨，营造"舆图"分野感）
-  ctx.save();
-  ctx.lineWidth=0.7; ctx.strokeStyle='rgba(92,67,34,.32)';
-  ctx.setLineDash([4,3]);
-  GEO_FULL.features.forEach(f=>{ tracePath(f); ctx.stroke(); });
-  ctx.restore();
-
-  // 5) 省界描金（双线：粗暗金 + 细亮金）
-  ctx.save();
-  tracePath(GEO_BORDER);
-  ctx.lineWidth=4.5; ctx.strokeStyle='rgba(120,86,40,.9)';
-  ctx.lineJoin='round'; ctx.stroke();
-  tracePath(GEO_BORDER);
-  ctx.lineWidth=1.8; ctx.strokeStyle='#f0d9a0'; ctx.stroke();
-  ctx.restore();
-
-  // 6) 四角暗角
-  const vig=ctx.createRadialGradient(W/2,H*0.46,H*0.34,W/2,H*0.46,H*0.92);
-  vig.addColorStop(0,'rgba(0,0,0,0)');
-  vig.addColorStop(1,'rgba(28,18,8,.5)');
-  ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);
+  // 成品地形底图（盖住白剪影内部，仅在边缘留出 pad 宽白边 + 外侧羽化光晕）
+  ctx.drawImage(TERRAIN.map, x, y, w, h);
 }
 
 // 盆地：以地理中心向外的径向渐变洼地（旧版，保留备用）
@@ -634,7 +582,20 @@ function hexA(hex,a){
 function townsOfEra(i){ return TOWNS.filter(t=>t.eraIndex===i); }
 function relicsOfEra(i){ return RELICS.filter(r=>r.eraIndex===i); }
 
+/* 城镇点的青铜绿金属渐变（高光偏左上 → 深绿边缘），仅创建一次 */
+function ensureTownGrad(){
+  if(svg.select('#townGrad').size()) return;
+  const defs = svg.select('defs').empty() ? svg.append('defs') : svg.select('defs');
+  const g = defs.append('radialGradient').attr('id','townGrad')
+    .attr('cx','50%').attr('cy','50%').attr('r','62%').attr('fx','33%').attr('fy','28%');
+  g.append('stop').attr('offset','0%').attr('stop-color','#b3cf8c');   // 金属高光
+  g.append('stop').attr('offset','34%').attr('stop-color','#7a9e54');
+  g.append('stop').attr('offset','72%').attr('stop-color','#516f3b');
+  g.append('stop').attr('offset','100%').attr('stop-color','#334c28');  // 暗绿边缘
+}
+
 function renderPoints(){
+  ensureTownGrad();
   const eraTowns = showTown ? townsOfEra(curEra) : [];
   const eraRelics = showRelic ? relicsOfEra(curEra) : [];
 
@@ -666,10 +627,15 @@ function renderPoints(){
 
   // 外光晕
   tenter.append('circle').attr('class','halo').attr('r',13)
-    .attr('fill','none').attr('stroke','#b3361f').attr('stroke-width',1.2).attr('opacity',0.5);
-  // 主点
+    .attr('fill','none').attr('stroke','#516f3b').attr('stroke-width',1.2).attr('opacity',0.5);
+  // 主点（青铜绿 · 金属质感：径向渐变 + 暗绿描边 + 鎏金外圈）
   tenter.append('circle').attr('class','core').attr('r',6)
-    .attr('fill','#b3361f').attr('stroke','#f4e2b8').attr('stroke-width',1.5);
+    .attr('fill','url(#townGrad)').attr('stroke','#2c4222').attr('stroke-width',0.7);
+  tenter.append('circle').attr('class','corering').attr('r',6.4)
+    .attr('fill','none').attr('stroke','#f4e2b8').attr('stroke-width',1.2).attr('opacity',0.9);
+  // 金属高光点
+  tenter.append('circle').attr('class','sheen').attr('r',1.7)
+    .attr('cx',-1.7).attr('cy',-2).attr('fill','rgba(255,255,255,0.65)');
   // 标签（默认隐藏，hover 显示）
   tenter.append('text').attr('class','label').attr('y',-16).attr('text-anchor','middle')
     .attr('opacity',0).attr('font-size',13).attr('font-weight',700)
@@ -904,9 +870,10 @@ function spawnGlyph(text){
   chars.forEach((ch,i)=>{
     const el=document.createElement('div');
     el.className='float-glyph';el.textContent=ch;
-    el.style.left=(W*0.5 + (i-chars.length/2)*26)+'px';
+    const base=40;                                   // 朝代名字号（放大）
+    el.style.left=(W*0.5 + (i-chars.length/2)*base)+'px';
     el.style.top=(H*0.5)+'px';
-    el.style.fontSize=(28+Math.random()*10)+'px';
+    el.style.fontSize=(base+Math.random()*16)+'px';
     stage.appendChild(el);
     el.animate([
       {opacity:0,transform:'translateY(0) scale(.8)'},

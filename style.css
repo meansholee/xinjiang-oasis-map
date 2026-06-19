@@ -34,10 +34,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
   border-top:1px solid rgba(0,0,0,.3);}
 
 /* 题跋 · 左上（横向题图 千年绿洲，下方横排 副题 + 朝代牌匾）*/
-#titleblock{position:absolute;top:26px;left:42px;z-index:20;
+#titleblock{position:absolute;top:26px;left:-20px;z-index:20;
   display:flex;flex-direction:column;align-items:flex-start;gap:14px;}
 .title-img{width:clamp(330px,28vw,440px);height:auto;display:block;
-  filter:drop-shadow(0 4px 12px rgba(0,0,0,.62));}
+  filter:drop-shadow(0 0 12px rgba(255,255,255,.8)) drop-shadow(0 2px 6px rgba(255,255,255,.55));}
 .title-meta{display:flex;align-items:center;gap:18px;padding-left:10px;}
 .title-meta .subtitle{font-size:18px;color:#eed8a4;letter-spacing:10px;font-weight:600;
   text-indent:10px;text-shadow:0 1px 6px rgba(0,0,0,.75);}
@@ -81,8 +81,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
 .legend-row{display:flex;align-items:center;gap:9px;margin-bottom:7px;}
 .dot{width:12px;height:12px;border-radius:50%;display:inline-block;position:relative;flex:none;
   border:1px solid rgba(255,250,235,.7);}
-.dot.town{background:radial-gradient(circle at 35% 32%,#e06a4f,#b3361f 70%);
-  box-shadow:0 0 8px rgba(179,54,31,.85),0 1px 2px rgba(0,0,0,.3);}
+.dot.town{background:radial-gradient(circle at 33% 28%,#b3cf8c,#7a9e54 38%,#516f3b 72%,#334c28 100%);
+  box-shadow:0 0 6px rgba(81,111,59,.7),inset 0 1px 1px rgba(255,255,255,.4),0 1px 2px rgba(0,0,0,.35);}
 .dot.relic{background:radial-gradient(circle at 35% 32%,#3f6c93,#1c3a5e 70%);
   box-shadow:0 0 7px rgba(28,58,94,.75),0 1px 2px rgba(0,0,0,.3);}
 .legend-toggle{display:flex;align-items:center;gap:6px;margin-top:5px;
@@ -183,9 +183,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
   text-shadow:0 1px 0 rgba(255,250,235,.5);}
 .era-readout .count{font-size:11px;color:#9a7b48;letter-spacing:1px;}
 
-/* 浮动诗签 / 文字粒子 */
-.float-glyph{position:absolute;color:#5c4322;font-size:18px;font-weight:600;pointer-events:none;
-  z-index:15;opacity:0;text-shadow:0 1px 2px rgba(255,255,255,.4);}
+/* 朝代切换 · 中央浮字字体（华文隶书_CNKI / HGLS_CNKI，回退至标准华文隶书）*/
+@font-face{
+  font-family:'EraLishu';
+  src: local('华文隶书_CNKI'), local('HGLS_CNKI'), local('华文隶书'), local('STLiti'),
+       url('file:///C:/Windows/Fonts/HGLS_CNKI.TTF') format('truetype');
+  font-display: swap;
+}
+
+/* 浮动诗签 / 文字粒子（朝代名居中浮现）*/
+.float-glyph{position:absolute;font-family:'EraLishu',"STLiti","华文隶书",serif;
+  color:#5c4322;font-size:60px;font-weight:400;pointer-events:none;
+  z-index:15;opacity:0;text-shadow:0 2px 8px rgba(255,255,255,.6),0 1px 3px rgba(0,0,0,.25);}
 
 /* 名片 · 文本行信息（人口/产业 · 文保属性）*/
 .info-row { display:flex; gap:10px; margin-bottom:9px; align-items:flex-start; font-size:13px; }
