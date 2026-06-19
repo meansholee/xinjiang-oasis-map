@@ -779,6 +779,34 @@ function showCard(d, kind){
 
     at.innerHTML = '<p style="font-size:13px;color:#7a6342;line-height:1.8;font-style:italic;">文物保护单位不附古籍载录。详情请参阅新疆文物局历次普查公布文件。</p>';
   }
+
+  showLife(d);
+}
+
+/* ---------- 前世今生：按 CSV「今地区」聚合的历史地名时间轴 ---------- */
+function lifeRegionFor(d){
+  const A = window.__LIFE_ANCIENT__ || {}, M = window.__LIFE_MODERN__ || {};
+  const strip = s => s.replace(/(国|城|郡|部|镇|府|县|州|谷)$/, '');
+  if(d.era === '现代') return M[d.name] || A[d.name] || A[strip(d.name)] || null;
+  return A[d.name] || A[strip(d.name)] || M[d.name] || null;
+}
+function showLife(d){
+  const card = document.getElementById('lifeCard');
+  if(!card) return;
+  const LIFE = window.__LIFE__ || {};
+  const region = lifeRegionFor(d);
+  const data = region ? LIFE[region] : null;
+  if(!data || !data.nodes || !data.nodes.length){ card.classList.add('hidden'); return; }
+  document.getElementById('lifeRegion').textContent = '今 · ' + data.region;
+  document.getElementById('lifeTimeline').innerHTML = data.nodes.map(n=>{
+    const desc = (n.geo || n.products || n.pop || '').trim();
+    return `<div class="life-node"><span class="life-era">${n.era}</span>`+
+           `<div class="life-name">${n.name}</div>`+
+           (desc ? `<div class="life-desc">${desc}</div>` : '')+
+           `</div>`;
+  }).join('');
+  card.scrollTop = 0;
+  card.classList.remove('hidden');
 }
 function barRow(label,val,tag){
   return `<div class="bar-row">
@@ -787,6 +815,8 @@ function barRow(label,val,tag){
 }
 document.getElementById('cardClose').onclick =
   ()=>document.getElementById('card').classList.add('hidden');
+document.getElementById('lifeClose').onclick =
+  ()=>document.getElementById('lifeCard').classList.add('hidden');
 
 /* ============================================================
    时间轴
