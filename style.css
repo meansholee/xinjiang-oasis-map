@@ -85,8 +85,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
   box-shadow:0 0 6px rgba(81,111,59,.7),inset 0 1px 1px rgba(255,255,255,.4),0 1px 2px rgba(0,0,0,.35);}
 .dot.relic{background:radial-gradient(circle at 35% 32%,#3f6c93,#1c3a5e 70%);
   box-shadow:0 0 7px rgba(28,58,94,.75),0 1px 2px rgba(0,0,0,.3);}
+.dot.ghost{background:radial-gradient(circle at 35% 32%,#9a9080,#6f6657 70%);opacity:.7;
+  border-color:rgba(255,250,235,.35);box-shadow:0 1px 2px rgba(0,0,0,.25);}
 .legend-toggle{display:flex;align-items:center;gap:8px;margin-top:10px;
   padding-top:12px;border-top:1px solid rgba(139,69,19,0.15);cursor:pointer;font-size:12px;color:#5c4322;}
+/* 仅在第一个 legend-toggle 上加分隔线，多个连续 toggle 之间不重复描边 */
+.legend-toggle + .legend-toggle{margin-top:6px;padding-top:0;border-top:none;}
 
 /* 历史名片 */
 #card{position:absolute;top:0;right:0;height:100%;width:384px;z-index:40;
@@ -302,6 +306,68 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
 .cover-hint{margin-top:22px;font-size:12px;letter-spacing:4px;color:#9c8862;
   opacity:.85;animation:coverHintPulse 3.2s ease-in-out infinite;}
 @keyframes coverHintPulse{0%,100%{opacity:.35;}50%{opacity:.9;}}
+
+/* ============================================================
+   UI 精修 · 国风一致性 + 无障碍（鎏金焦点环 / 绢本质感 / 卷轴滚动条）
+   仅作增补，不改既有设色与版式
+   ============================================================ */
+
+/* —— 鎏金焦点环：键盘可达性，统一描金视觉 —— */
+#playBtn:focus-visible,
+#cardClose:focus-visible,
+#lifeClose:focus-visible,
+#enterBtn:focus-visible,
+.track-ticks span:focus-visible,
+.legend-toggle input:focus-visible{
+  outline:2px solid var(--gold-2);
+  outline-offset:3px;
+  border-radius:6px;
+}
+/* 复选框沿用主题色 */
+.legend-toggle input{accent-color:var(--seal-red);cursor:pointer;width:14px;height:14px;flex:none;}
+
+/* —— 触控目标 ≥ 36px：放大关闭键点击域（视觉圆点不变，外扩透明热区）—— */
+#cardClose,#lifeClose{position:absolute;}
+#cardClose::after,#lifeClose::after{content:"";position:absolute;inset:-8px;border-radius:50%;}
+
+/* —— 绢本质感：玻璃面板顶端内高光 + 极淡底纹，增层次 —— */
+#legend,#timeline,#lifeCard,.era-badge{
+  box-shadow:var(--glass-shadow),inset 0 1px 0 rgba(255,255,255,.55);
+}
+#card{box-shadow:-14px 0 44px rgba(60,40,20,0.22),inset 1px 0 0 rgba(255,255,255,.4);}
+
+/* —— 卷轴滚动条：替换默认灰色滚动条，描金贴合主题 —— */
+#card,#lifeCard{scrollbar-width:thin;scrollbar-color:var(--gold-3) rgba(92,67,34,.10);}
+#card::-webkit-scrollbar,#lifeCard::-webkit-scrollbar{width:8px;}
+#card::-webkit-scrollbar-track,#lifeCard::-webkit-scrollbar-track{
+  background:rgba(92,67,34,.08);border-radius:4px;}
+#card::-webkit-scrollbar-thumb,#lifeCard::-webkit-scrollbar-thumb{
+  background:linear-gradient(180deg,var(--gold-2),var(--gold-3));
+  border-radius:4px;border:2px solid transparent;background-clip:padding-box;}
+#card::-webkit-scrollbar-thumb:hover,#lifeCard::-webkit-scrollbar-thumb:hover{
+  background:linear-gradient(180deg,var(--gold-1),var(--gold-2));background-clip:padding-box;}
+
+/* —— 朝代刻度：键盘可聚焦时的轻微提示，悬停反馈更明确 —— */
+.track-ticks span{padding:2px 1px;border-radius:4px;}
+.track-ticks span:hover{color:#5c4322;background:rgba(199,154,74,.14);}
+
+/* —— 对比度微调：最浅的次级文字略加深，满足可读性 —— */
+.era-readout .count{color:#8a6c3c;}
+.track-ticks span{color:#7d6646;}
+
+/* ============================================================
+   无障碍 · 尊重「减少动态效果」系统偏好
+   关闭氛围性无限动画（背景漂移/光晕呼吸由 JS 另行判停）
+   ============================================================ */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+    scroll-behavior:auto !important;
+  }
+  #coverImg{animation:none !important;}
+}
 
 @media (max-width:768px){
   .cover-title-img{width:min(82vw,460px);}

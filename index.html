@@ -34,13 +34,15 @@
       <div class="legend-title">图　例</div>
       <div class="legend-row"><span class="dot town"></span>城镇 · 治所</div>
       <div class="legend-row"><span class="dot relic"></span>文保 · 古迹</div>
+      <div class="legend-row"><span class="dot ghost"></span>绿洲 · 残影</div>
       <label class="legend-toggle"><input type="checkbox" id="toggleTown" checked /> 显示古城邦</label>
       <label class="legend-toggle"><input type="checkbox" id="toggleRelic" checked /> 显示遗址点</label>
+      <label class="legend-toggle"><input type="checkbox" id="toggleGhost" checked /> 显示消亡绿洲</label>
     </div>
 
     <!-- 历史名片 · 右侧抽屉 -->
     <aside id="card" class="hidden xy-panel">
-      <button id="cardClose">✕</button>
+      <button id="cardClose" aria-label="关闭历史名片">✕</button>
       <div class="card-seal" id="cardSeal">城</div>
       <h2 id="cardName">—</h2>
       <div class="card-era" id="cardEra">—</div>
@@ -60,7 +62,7 @@
 
     <!-- 前世今生 · 左下角（按今地区聚合的历史地名时间轴）-->
     <aside id="lifeCard" class="xy-panel hidden">
-      <button id="lifeClose">✕</button>
+      <button id="lifeClose" aria-label="关闭前世今生">✕</button>
       <div class="life-title">前 世 今 生</div>
       <div class="life-region" id="lifeRegion">—</div>
       <div class="life-timeline" id="lifeTimeline"></div>
@@ -68,9 +70,10 @@
 
     <!-- 时间轴 · 底部 -->
     <footer id="timeline" class="xy-panel">
-      <button id="playBtn" title="自动漫游">▶</button>
+      <button id="playBtn" title="自动漫游" aria-label="自动播放朝代演进" aria-pressed="false">▶</button>
       <div class="track-wrap">
-        <div class="era-rail" id="eraRail" role="slider" aria-label="朝代纪年" tabindex="0">
+        <div class="era-rail" id="eraRail" role="slider" aria-label="朝代纪年" tabindex="0"
+             aria-valuemin="0" aria-valuemax="14" aria-valuenow="0">
           <div class="era-rail-fill" id="eraRailFill"></div>
           <div class="era-bead" id="eraBead"></div>
         </div>

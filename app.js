@@ -12,9 +12,24 @@ const GEO_BOUNDS = { lng:[73.4, 96.6], lat:[34.2, 49.3] };
 let TOWNS = [], RELICS = [];
 let GEO_FULL = null, GEO_BORDER = null;
 let curEra = 0;
+let prevEra = -1;                 // 上一显示朝代（用于判断"前进"以触发消亡闪灭）
 let playing = false, playTimer = null;
 let showTown = true;
 let showRelic = true;
+let showGhost = true;             // 幽灵图层：已消亡绿洲的灰色残影
+
+/* 绿洲生命谱：按"名称"聚合，记录每个绿洲存续的朝代区间。
+   同名城邦在多个朝代出现 → 视为同一绿洲的延续；其"最后出现朝代"之后即视为消亡。 */
+let OASIS_LIFE = {};              // name -> { eras:[升序朝代下标], byEra:{ idx:town } }
+function buildOasisLife(){
+  OASIS_LIFE = {};
+  TOWNS.forEach(t=>{
+    let o = OASIS_LIFE[t.name];
+    if(!o){ o = OASIS_LIFE[t.name] = { eras:[], byEra:{} }; }
+    if(!(t.eraIndex in o.byEra)){ o.byEra[t.eraIndex] = t; o.eras.push(t.eraIndex); }
+  });
+  Object.keys(OASIS_LIFE).forEach(k=>OASIS_LIFE[k].eras.sort((a,b)=>a-b));
+}
 
 const stage   = document.getElementById('stage');
 const canvas  = document.getElementById('map');
@@ -23,6 +38,9 @@ const svg     = d3.select('#overlay');
 
 let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
 let projection;
+
+/* 无障碍：尊重系统「减少动态效果」偏好 —— 停掉氛围性无限动画（背景漂移、光晕呼吸）*/
+const REDUCE_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 // 背景图预加载（file:// 离线可用）
 const bgImage = new Image();
@@ -82,7 +100,19 @@ function drawBgFrame(){
 }
 
 function startBgAnim(){
+  if(REDUCE_MOTION){ drawBgStatic(); return; }   // 减少动态：仅绘一帧静态背景
   if(!bgAnimRunning){ bgAnimRunning = true; drawBgFrame(); }
+}
+/* 静态背景帧（无漂移/呼吸），供「减少动态效果」偏好使用 */
+function drawBgStatic(){
+  bgCtx.clearRect(0, 0, W, H);
+  if(!bgImage.complete || !bgImage.naturalWidth) return;
+  bgCtx.save();
+  bgCtx.filter = 'blur(4px)';
+  const m = 20;
+  bgCtx.drawImage(bgImage, -m, -m, W + m*2, H + m*2);
+  bgCtx.filter = 'none';
+  bgCtx.restore();
 }
 
 /* ---------- 投影：真实经纬度 → 屏幕像素 ----------
@@ -582,6 +612,30 @@ function hexA(hex,a){
 function townsOfEra(i){ return TOWNS.filter(t=>t.eraIndex===i); }
 function relicsOfEra(i){ return RELICS.filter(r=>r.eraIndex===i); }
 
+/* 当前朝代 i 下「已消亡」的绿洲：其最后出现朝代 < i。
+   残影落在该绿洲"最后一次出现"的坐标（即它消亡前的所在地）。 */
+function ghostsOfEra(i){
+  const out = [];
+  for(const name in OASIS_LIFE){
+    const o = OASIS_LIFE[name];
+    const last = o.eras[o.eras.length-1];
+    if(last < i){
+      const t = o.byEra[last];
+      out.push({ id:t.id, name:t.name, lng:t.lng, lat:t.lat, deadEra:last });
+    }
+  }
+  return out;
+}
+/* 在朝代 i「恰好消亡」的绿洲（最后出现朝代 === i-1）—— 用于前进时的闪灭特效 */
+function newlyDeadAt(i){
+  const out = [];
+  for(const name in OASIS_LIFE){
+    const o = OASIS_LIFE[name];
+    if(o.eras[o.eras.length-1] === i-1) out.push(o.byEra[i-1]);
+  }
+  return out;
+}
+
 /* 城镇点的青铜绿金属渐变（高光偏左上 → 深绿边缘），仅创建一次 */
 function ensureTownGrad(){
   if(svg.select('#townGrad').size()) return;
@@ -598,6 +652,25 @@ function renderPoints(){
   ensureTownGrad();
   const eraTowns = showTown ? townsOfEra(curEra) : [];
   const eraRelics = showRelic ? relicsOfEra(curEra) : [];
+
+  // --- 幽灵图层（最底层，灰色残影，不可交互）---
+  // 容器固定为 SVG 第一个子节点 → 永远绘制在活点之下
+  let ghostG = svg.select('g.ghost-layer');
+  if(ghostG.empty()) ghostG = svg.insert('g', ':first-child').attr('class','ghost-layer');
+  const ghosts = showGhost ? ghostsOfEra(curEra) : [];
+  const gsel = ghostG.selectAll('g.ghost').data(ghosts, d=>'g'+d.name);
+  gsel.exit().transition().duration(420).attr('opacity',0).remove();
+  const genter = gsel.enter().append('g').attr('class','ghost')
+    .style('pointer-events','none')           // 无法交互
+    .attr('opacity',0)
+    .attr('transform',d=>{const p=proj(d.lng,d.lat);return `translate(${p[0]},${p[1]})`;});
+  genter.append('circle').attr('class','ghost-core').attr('r',4.2)
+    .attr('fill','#6f6657').attr('opacity',0.55);
+  genter.append('circle').attr('class','ghost-ring').attr('r',5).attr('fill','none')
+    .attr('stroke','#9a9080').attr('stroke-width',0.6).attr('opacity',0.4);
+  genter.merge(gsel).transition().duration(700)
+    .attr('transform',d=>{const p=proj(d.lng,d.lat);return `translate(${p[0]},${p[1]})`;})
+    .attr('opacity',1);
 
   // --- 文保点（底层，小蓝点）---
   const rsel = svg.selectAll('g.relic').data(eraRelics, d=>'r'+d.id);
@@ -652,11 +725,32 @@ function renderPoints(){
 }
 
 function pulse(sel){
+  if(REDUCE_MOTION){ sel.attr('r',14).attr('opacity',0.32); return; }  // 减少动态：光晕静止
   sel.transition().duration(1600).ease(d3.easeSinInOut)
     .attr('r',18).attr('opacity',0.05)
     .transition().duration(1600).ease(d3.easeSinInOut)
     .attr('r',13).attr('opacity',0.5)
     .on('end',function(){ pulse(d3.select(this)); });
+}
+
+/* 绿洲消亡瞬间的「啪」—— 一道亮闪 + 一圈冲击波扩散后归于沉寂，随后底层留下灰色残影。
+   附加在 SVG 末尾 → 绘制在所有点之上。 */
+function deathFlash(town){
+  if(!town) return;
+  const p = proj(town.lng, town.lat);
+  const fl = svg.append('g').attr('class','death-flash')
+    .style('pointer-events','none')
+    .attr('transform',`translate(${p[0]},${p[1]})`);
+  // 亮闪核心
+  fl.append('circle').attr('r',5).attr('fill','#ffe6b0').attr('opacity',0.95)
+    .transition().duration(130).ease(d3.easeQuadOut).attr('r',11).attr('opacity',1)
+    .transition().duration(280).ease(d3.easeCubicIn).attr('r',0.5).attr('opacity',0);
+  // 冲击波环
+  fl.append('circle').attr('r',5).attr('fill','none')
+    .attr('stroke','#e8c47a').attr('stroke-width',2.2).attr('opacity',0.9)
+    .transition().duration(560).ease(d3.easeCubicOut)
+    .attr('r',26).attr('stroke-width',0.3).attr('opacity',0)
+    .on('end',()=>fl.remove());
 }
 
 /* ============================================================
@@ -822,8 +916,14 @@ document.getElementById('lifeClose').onclick =
    时间轴
    ============================================================ */
 function setEra(i){
-  curEra = Math.max(0, Math.min(ERA_ORDER.length-1, i));
+  const target = Math.max(0, Math.min(ERA_ORDER.length-1, i));
+  prevEra = curEra;
+  curEra = target;
   const name = ERA_ORDER[curEra];
+  // 前进一朝时，对「恰在此朝消亡」的绿洲逐个闪灭（楼兰、尼雅式的"啪"地熄灭）
+  if(showGhost && curEra === prevEra + 1){
+    newlyDeadAt(curEra).forEach((t,k)=> setTimeout(()=>deathFlash(t), 90*k));
+  }
   // 横排纪年轨：定位金珠 + 填充（古→今，自左而右）
   const frac = curEra / (ERA_ORDER.length - 1);
   const bead = document.getElementById('eraBead');
@@ -831,7 +931,7 @@ function setEra(i){
   if(bead) bead.style.left  = (frac*100) + '%';
   if(fill) fill.style.width = (frac*100) + '%';
   const rail = document.getElementById('eraRail');
-  if(rail) rail.setAttribute('aria-valuetext', name);
+  if(rail){ rail.setAttribute('aria-valuetext', name); rail.setAttribute('aria-valuenow', curEra); }
   document.getElementById('eraName').textContent = name;
   document.getElementById('eraNameBig').textContent = name;
   const n = townsOfEra(curEra).length;
@@ -881,7 +981,8 @@ function buildTicks(){
 })();
 
 function startPlay(){
-  playing=true; document.getElementById('playBtn').textContent='❚❚';
+  playing=true;
+  const b=document.getElementById('playBtn'); b.textContent='❚❚'; b.setAttribute('aria-pressed','true');
   playTimer=setInterval(()=>{
     let next=curEra+1;
     if(next>=ERA_ORDER.length){ next=0; }
@@ -889,7 +990,8 @@ function startPlay(){
   },1800);
 }
 function stopPlay(){
-  playing=false; document.getElementById('playBtn').textContent='▶';
+  playing=false;
+  const b=document.getElementById('playBtn'); b.textContent='▶'; b.setAttribute('aria-pressed','false');
   if(playTimer){clearInterval(playTimer);playTimer=null;}
 }
 document.getElementById('playBtn').onclick=()=>playing?stopPlay():startPlay();
@@ -920,6 +1022,10 @@ document.getElementById('toggleTown').onchange=e=>{
 document.getElementById('toggleRelic').onchange=e=>{
   showRelic=e.target.checked; renderPoints();
 };
+const _toggleGhost = document.getElementById('toggleGhost');
+if(_toggleGhost) _toggleGhost.onchange=e=>{
+  showGhost=e.target.checked; renderPoints();
+};
 
 /* ============================================================
    启动 —— 读取内嵌数据（data.js），file:// 双击即可运行
@@ -930,6 +1036,7 @@ document.getElementById('toggleRelic').onchange=e=>{
     if(!td || !rd) throw new Error('内嵌数据未加载');
     TOWNS = td.towns;
     RELICS = rd.relics;
+    buildOasisLife();
     GEO_FULL = window.__GEO_FULL__ || null;
     GEO_BORDER = window.__GEO_BORDER__ || null;
     buildTicks();
