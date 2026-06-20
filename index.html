@@ -60,12 +60,28 @@
       <div class="ancient-text" id="webText" style="display:none"></div>
     </aside>
 
-    <!-- 前世今生 · 左下角（按今地区聚合的历史地名时间轴）-->
-    <aside id="lifeCard" class="xy-panel hidden">
-      <button id="lifeClose" aria-label="关闭前世今生">✕</button>
-      <div class="life-title">前 世 今 生</div>
-      <div class="life-region" id="lifeRegion">—</div>
-      <div class="life-timeline" id="lifeTimeline"></div>
+    <!-- 前世今生 · 左下角触发按钮（仅当该地有时间轴时浮现）-->
+    <button id="lifeBtn" class="hidden" aria-label="展开前世今生时间轴">
+      <span class="life-btn-orb"></span>
+      <span class="life-btn-text">前世今生</span>
+      <span class="life-btn-arrow" aria-hidden="true">›</span>
+    </button>
+
+    <!-- 前世今生 · 左下角卡片（3D 鎏金辉光 + 竖向纪年时间轴）-->
+    <aside id="lifeCard" class="hidden" aria-label="前世今生时间轴">
+      <div class="life-card-3d">
+        <div class="life-fx life-fx-nebula"></div>
+        <div class="life-fx life-fx-aurora"></div>
+        <div class="life-fx life-fx-holo"></div>
+        <div class="life-fx life-fx-dust"></div>
+        <div class="life-glaze"></div>
+        <button id="lifeClose" aria-label="关闭前世今生">✕</button>
+        <div class="life-inner">
+          <div class="life-title">前 世 今 生</div>
+          <div class="life-region" id="lifeRegion">—</div>
+          <div class="life-timeline" id="lifeTimeline"></div>
+        </div>
+      </div>
     </aside>
 
     <!-- 时间轴 · 底部 -->

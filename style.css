@@ -213,21 +213,119 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
   padding:12px 14px; border-left:3px solid #1f4f63; border-radius:0 6px 6px 0; }
 
 /* ============================================================
-   前世今生 · 左下角卡片（同款毛玻璃 + 竖向纪年时间轴）
+   前世今生 · 左下角触发按钮 + 3D 鎏金辉光卡片
+   （概念取自交互式 3D 名片：鼠标倾斜 / 星云·极光·全息流光 / 浮金尘，
+    以本站鎏金·青绿·绢本国风重绘）
    ============================================================ */
-#lifeCard{position:absolute;left:24px;bottom:30px;z-index:38;
-  width:344px;max-height:min(56vh,580px);overflow-y:auto;
-  background:var(--glass-bg);
-  -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
-  border:var(--glass-border);border-radius:14px;
-  padding:18px 24px 22px;box-shadow:var(--glass-shadow);
+
+/* —— 触发按钮：鎏金药丸 + 呼吸金珠（提示此地藏有时间轴）—— */
+#lifeBtn{position:absolute;left:24px;bottom:30px;z-index:38;
+  display:inline-flex;align-items:center;gap:10px;
+  padding:12px 18px 12px 15px;cursor:pointer;
+  font-family:var(--serif-disp);font-size:15px;font-weight:700;
+  letter-spacing:0.18em;text-indent:0.18em;color:#3a2a12;
+  background:linear-gradient(135deg,#fbf0d2 0%,#e6c478 48%,#c79a4a 100%);
+  border:1px solid #fbf0d2;border-radius:30px;
+  box-shadow:0 8px 22px rgba(60,40,20,.34),inset 0 1px 0 rgba(255,255,255,.6),
+             0 0 0 4px rgba(199,154,74,.14);
   transform:translateY(0);opacity:1;
-  transition:transform .45s cubic-bezier(.4,0,.2,1),opacity .4s;}
-#lifeCard.hidden{transform:translateY(28px);opacity:0;pointer-events:none;}
-#lifeClose{position:absolute;top:14px;right:14px;background:rgba(92,67,34,.08);border:none;
+  transition:transform .42s cubic-bezier(.34,1.2,.4,1),opacity .35s,box-shadow .3s;}
+#lifeBtn.hidden{transform:translateY(28px);opacity:0;pointer-events:none;}
+#lifeBtn:hover{transform:translateY(-3px) scale(1.04);
+  box-shadow:0 14px 30px rgba(199,154,74,.5),inset 0 1px 0 rgba(255,255,255,.7),
+             0 0 0 5px rgba(199,154,74,.22);}
+#lifeBtn:active{transform:translateY(-1px) scale(1.01);}
+.life-btn-orb{width:12px;height:12px;border-radius:50%;flex:none;
+  background:radial-gradient(circle at 35% 30%,#fff7e0,#e6c478 55%,#a8731f);
+  animation:lifeOrb 2.4s ease-in-out infinite;}
+@keyframes lifeOrb{
+  0%,100%{box-shadow:0 0 0 3px rgba(255,247,224,.30),0 0 8px rgba(230,196,120,.7);}
+  50%    {box-shadow:0 0 0 5px rgba(255,247,224,.15),0 0 16px rgba(230,196,120,1);}}
+.life-btn-arrow{font-size:18px;font-weight:400;color:#5c4322;line-height:1;
+  transition:transform .3s;}
+#lifeBtn:hover .life-btn-arrow{transform:translateX(3px);}
+
+/* —— 卡片外壳：仅作 3D 透视容器与开合过渡 —— */
+#lifeCard{position:absolute;left:24px;bottom:30px;z-index:38;
+  width:360px;perspective:1400px;
+  transform:translateY(0);opacity:1;
+  transition:transform .5s cubic-bezier(.34,1.2,.4,1),opacity .4s;}
+#lifeCard.hidden{transform:translateY(34px) scale(.96);opacity:0;pointer-events:none;}
+/* 外圈鎏金辉光呼吸（置于卡体外层，不被卡体 overflow 裁切）*/
+#lifeCard::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:16px;
+  pointer-events:none;box-shadow:0 0 30px rgba(230,196,120,.45);
+  animation:lifeGlow 5.5s ease-in-out infinite;}
+@keyframes lifeGlow{0%,100%{opacity:.35;}50%{opacity:.85;}}
+
+/* —— 倾斜卡体：绢本玻璃 + 鎏金描边 + 辉光呼吸 —— */
+.life-card-3d{position:relative;border-radius:16px;overflow:hidden;
+  transform-style:preserve-3d;will-change:transform;
+  background:linear-gradient(150deg,rgba(245,236,216,.60) 0%,
+            rgba(238,224,193,.56) 55%,rgba(232,214,176,.60) 100%);
+  -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid rgba(199,154,74,.45);
+  box-shadow:0 18px 46px rgba(60,40,20,.32),inset 0 1px 0 rgba(255,255,255,.45),
+             0 0 22px rgba(230,196,120,.22);
+  transition:transform .12s ease-out,box-shadow .5s;}
+.life-card-3d.glow{box-shadow:0 22px 54px rgba(60,40,20,.36),
+             inset 0 1px 0 rgba(255,255,255,.55),0 0 34px rgba(230,196,120,.5);}
+
+/* —— 氛围特效层（重绘自原星云/极光/全息/星尘）—— */
+.life-fx{position:absolute;inset:0;pointer-events:none;}
+.life-fx-nebula{z-index:1;
+  background:
+    radial-gradient(circle at 25% 24%, rgba(230,196,120,.55) 0%, transparent 55%),
+    radial-gradient(circle at 78% 72%, rgba(31,79,99,.30) 0%, transparent 55%),
+    radial-gradient(circle at 60% 32%, rgba(199,154,74,.32) 0%, transparent 50%);
+  animation:lifeNebula 16s ease-in-out infinite;}
+@keyframes lifeNebula{
+  0%,100%{transform:translate(0,0) scale(1);}
+  33%{transform:translate(4%,-3%) scale(1.08);}
+  66%{transform:translate(-3%,3%) scale(1.05);}}
+.life-fx-aurora{z-index:1;mix-blend-mode:screen;opacity:.6;
+  background:
+    radial-gradient(ellipse at 82% 16%, rgba(166,207,134,.42) 0%, transparent 55%),
+    radial-gradient(ellipse at 16% 84%, rgba(230,196,120,.40) 0%, transparent 60%);
+  animation:lifeAurora 13s ease-in-out infinite;}
+@keyframes lifeAurora{
+  0%,100%{transform:translate(3%,3%) scale(1);}
+  50%{transform:translate(-4%,-4%) scale(1.18);}}
+.life-fx-holo{z-index:2;mix-blend-mode:screen;opacity:.5;
+  background:linear-gradient(115deg,transparent 38%,rgba(255,247,224,.5) 47%,
+            rgba(244,226,184,.7) 50%,rgba(255,247,224,.5) 53%,transparent 62%);
+  background-size:250% 250%;
+  animation:lifeHolo 6.5s ease-in-out infinite;}
+@keyframes lifeHolo{0%{background-position:120% 0;}100%{background-position:-40% 100%;}}
+.life-fx-dust{z-index:2;opacity:.55;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 18%, rgba(255,240,200,.9), transparent),
+    radial-gradient(1px 1px   at 30% 60%, rgba(230,196,120,.8), transparent),
+    radial-gradient(1.5px 1.5px at 55% 28%, rgba(255,240,200,.85), transparent),
+    radial-gradient(1px 1px   at 72% 72%, rgba(230,196,120,.8), transparent),
+    radial-gradient(1.5px 1.5px at 88% 40%, rgba(255,240,200,.9), transparent),
+    radial-gradient(1px 1px   at 45% 86%, rgba(230,196,120,.75), transparent),
+    radial-gradient(1px 1px   at 20% 90%, rgba(255,240,200,.8), transparent);
+  animation:lifeDust 9s ease-in-out infinite alternate;}
+@keyframes lifeDust{from{transform:translateY(0);opacity:.35;}to{transform:translateY(-10px);opacity:.7;}}
+/* 釉面：中心较实保证字迹清晰，四周渐透让辉光透出 */
+.life-glaze{position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 44%, rgba(247,240,224,.82) 0%,
+            rgba(245,238,222,.55) 45%, rgba(244,234,210,.12) 100%);}
+
+/* —— 内容层（在特效之上，独立滚动）—— */
+.life-inner{position:relative;z-index:4;padding:18px 24px 22px;
+  max-height:min(56vh,560px);overflow-y:auto;}
+
+#lifeClose{position:absolute;top:14px;right:14px;z-index:6;
+  background:rgba(92,67,34,.10);border:none;
   width:28px;height:28px;border-radius:50%;line-height:28px;text-align:center;
   font-size:15px;color:#5c4322;cursor:pointer;transition:background .2s,transform .25s;}
-#lifeClose:hover{background:rgba(168,49,33,.16);color:var(--seal-red);transform:rotate(90deg);}
+#lifeClose:hover{background:rgba(168,49,33,.18);color:var(--seal-red);transform:rotate(90deg);}
+
+/* 减少动态偏好：停掉氛围动画与倾斜（倾斜在 JS 侧亦已跳过）*/
+@media (prefers-reduced-motion: reduce){
+  .life-fx,#lifeCard::after,.life-btn-orb{animation:none !important;}
+}
 .life-title{font-family:var(--serif-disp);font-size:16px;font-weight:700;color:#5c4322;
   letter-spacing:0.15em;}
 .life-region{font-size:12px;color:#9a7b48;letter-spacing:0.06em;margin:5px 0 14px;
@@ -331,20 +429,20 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
 #cardClose::after,#lifeClose::after{content:"";position:absolute;inset:-8px;border-radius:50%;}
 
 /* —— 绢本质感：玻璃面板顶端内高光 + 极淡底纹，增层次 —— */
-#legend,#timeline,#lifeCard,.era-badge{
+#legend,#timeline,.era-badge{
   box-shadow:var(--glass-shadow),inset 0 1px 0 rgba(255,255,255,.55);
 }
 #card{box-shadow:-14px 0 44px rgba(60,40,20,0.22),inset 1px 0 0 rgba(255,255,255,.4);}
 
 /* —— 卷轴滚动条：替换默认灰色滚动条，描金贴合主题 —— */
-#card,#lifeCard{scrollbar-width:thin;scrollbar-color:var(--gold-3) rgba(92,67,34,.10);}
-#card::-webkit-scrollbar,#lifeCard::-webkit-scrollbar{width:8px;}
-#card::-webkit-scrollbar-track,#lifeCard::-webkit-scrollbar-track{
+#card,.life-inner{scrollbar-width:thin;scrollbar-color:var(--gold-3) rgba(92,67,34,.10);}
+#card::-webkit-scrollbar,.life-inner::-webkit-scrollbar{width:8px;}
+#card::-webkit-scrollbar-track,.life-inner::-webkit-scrollbar-track{
   background:rgba(92,67,34,.08);border-radius:4px;}
-#card::-webkit-scrollbar-thumb,#lifeCard::-webkit-scrollbar-thumb{
+#card::-webkit-scrollbar-thumb,.life-inner::-webkit-scrollbar-thumb{
   background:linear-gradient(180deg,var(--gold-2),var(--gold-3));
   border-radius:4px;border:2px solid transparent;background-clip:padding-box;}
-#card::-webkit-scrollbar-thumb:hover,#lifeCard::-webkit-scrollbar-thumb:hover{
+#card::-webkit-scrollbar-thumb:hover,.life-inner::-webkit-scrollbar-thumb:hover{
   background:linear-gradient(180deg,var(--gold-1),var(--gold-2));background-clip:padding-box;}
 
 /* —— 朝代刻度：键盘可聚焦时的轻微提示，悬停反馈更明确 —— */

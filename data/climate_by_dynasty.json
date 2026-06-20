@@ -1,0 +1,51 @@
+{
+  "overall_mean": 12.15,
+  "note": "avg_temp高于overall_mean为相对暖期，低于为相对冷期",
+  "dynasties": {
+    "汉朝": {
+      "avg_temp": 12.27,
+      "n_points": 15,
+      "span": "-206~220"
+    },
+    "三国": {
+      "avg_temp": 12.32,
+      "n_points": 1,
+      "span": "220~266"
+    },
+    "晋朝": {
+      "avg_temp": 13.01,
+      "n_points": 4,
+      "span": "266~420"
+    },
+    "南北朝": {
+      "avg_temp": 11.7,
+      "n_points": 10,
+      "span": "420~589"
+    },
+    "唐朝": {
+      "avg_temp": 12.12,
+      "n_points": 10,
+      "span": "618~907"
+    },
+    "宋朝": {
+      "avg_temp": 12.09,
+      "n_points": 10,
+      "span": "960~1279"
+    },
+    "元朝": {
+      "avg_temp": 12.35,
+      "n_points": 5,
+      "span": "1271~1368"
+    },
+    "明朝": {
+      "avg_temp": 11.29,
+      "n_points": 11,
+      "span": "1368~1644"
+    },
+    "清朝": {
+      "avg_temp": 12.95,
+      "n_points": 7,
+      "span": "1644~1912"
+    }
+  }
+}

@@ -886,11 +886,17 @@ function lifeRegionFor(d){
 }
 function showLife(d){
   const card = document.getElementById('lifeCard');
+  const btn  = document.getElementById('lifeBtn');
   if(!card) return;
   const LIFE = window.__LIFE__ || {};
   const region = lifeRegionFor(d);
   const data = region ? LIFE[region] : null;
-  if(!data || !data.nodes || !data.nodes.length){ card.classList.add('hidden'); return; }
+  // 无时间轴：按钮与卡片皆隐藏
+  if(!data || !data.nodes || !data.nodes.length){
+    card.classList.add('hidden');
+    if(btn) btn.classList.add('hidden');
+    return;
+  }
   document.getElementById('lifeRegion').textContent = '今 · ' + data.region;
   document.getElementById('lifeTimeline').innerHTML = data.nodes.map(n=>{
     const desc = (n.geo || n.products || n.pop || '').trim();
@@ -899,8 +905,11 @@ function showLife(d){
            (desc ? `<div class="life-desc">${desc}</div>` : '')+
            `</div>`;
   }).join('');
-  card.scrollTop = 0;
-  card.classList.remove('hidden');
+  const inner = card.querySelector('.life-inner');
+  if(inner) inner.scrollTop = 0;
+  // 有时间轴：默认折叠为左下角按钮，点击后再展开卡片
+  card.classList.add('hidden');
+  if(btn) btn.classList.remove('hidden');
 }
 function barRow(label,val,tag){
   return `<div class="bar-row">
@@ -909,8 +918,23 @@ function barRow(label,val,tag){
 }
 document.getElementById('cardClose').onclick =
   ()=>document.getElementById('card').classList.add('hidden');
-document.getElementById('lifeClose').onclick =
-  ()=>document.getElementById('lifeCard').classList.add('hidden');
+
+/* 前世今生：左下角按钮 ⇄ 卡片 的展开/折叠 */
+const _lifeCardEl = document.getElementById('lifeCard');
+const _lifeBtnEl  = document.getElementById('lifeBtn');
+function openLife(){
+  if(!_lifeCardEl) return;
+  if(_lifeBtnEl) _lifeBtnEl.classList.add('hidden');
+  _lifeCardEl.classList.remove('hidden');
+  const inner = _lifeCardEl.querySelector('.life-inner');
+  if(inner) inner.scrollTop = 0;
+}
+function closeLife(){
+  if(_lifeCardEl) _lifeCardEl.classList.add('hidden');
+  if(_lifeBtnEl)  _lifeBtnEl.classList.remove('hidden');   // 折叠回按钮
+}
+if(_lifeBtnEl) _lifeBtnEl.onclick = openLife;
+document.getElementById('lifeClose').onclick = closeLife;
 
 /* ============================================================
    时间轴
@@ -1113,4 +1137,53 @@ function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f
     cover.classList.add('cover-exit');
     setTimeout(()=>{ cover.style.display = 'none'; }, 950);
   });
+})();
+
+/* ============================================================
+   前世今生 · 3D 倾斜交互
+   鼠标悬停时卡体随光标轻倾（±6°），离开后回归并缓缓自摇。
+   概念取自交互式 3D 名片，幅度收敛以保证时间轴可读。
+   ============================================================ */
+(function lifeTilt(){
+  const card = document.getElementById('lifeCard');
+  if(!card) return;
+  const el = card.querySelector('.life-card-3d');
+  if(!el) return;
+  if(REDUCE_MOTION) return;            // 减少动态：不倾斜、不自摇
+
+  let hovering = false;
+  let rx = 0, ry = 0;                   // 当前角度
+  let trx = 0, tryy = 0;               // 目标角度
+  let sway = 0;                         // 自摇相位
+
+  function frame(){
+    // 卡片折叠时不计算，避免空转
+    if(card.classList.contains('hidden')){
+      requestAnimationFrame(frame); return;
+    }
+    if(hovering){
+      rx += (trx  - rx) * 0.12;
+      ry += (tryy - ry) * 0.12;
+    } else {
+      sway += 0.012;
+      trx  = Math.sin(sway)       * 2.4;
+      tryy = Math.cos(sway * 0.8) * 3.0;
+      rx += (trx  - rx) * 0.05;
+      ry += (tryy - ry) * 0.05;
+    }
+    el.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
+    requestAnimationFrame(frame);
+  }
+
+  el.addEventListener('mousemove', e=>{
+    const r = el.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width  - 0.5;
+    const py = (e.clientY - r.top)  / r.height - 0.5;
+    trx  = -py * 12;                    // 上下倾斜 ±6°
+    tryy =  px * 12;                    // 左右倾斜 ±6°
+  });
+  el.addEventListener('mouseenter', ()=>{ hovering = true;  el.classList.add('glow'); });
+  el.addEventListener('mouseleave', ()=>{ hovering = false; el.classList.remove('glow'); });
+
+  requestAnimationFrame(frame);
 })();
