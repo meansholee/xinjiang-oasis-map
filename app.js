@@ -900,60 +900,98 @@ function showCard(d, kind){
     at.innerHTML = '<p style="font-size:13px;color:#7a6342;line-height:1.8;font-style:italic;">文物保护单位不附古籍载录。详情请参阅新疆文物局历次普查公布文件。</p>';
   }
 
-  showLife(d);
+  showLife(d, kind);
 }
 
-/* ---------- 前世今生：按 CSV「今地区」聚合的历史地名时间轴 ---------- */
-function lifeRegionFor(d){
-  const A = window.__LIFE_ANCIENT__ || {}, M = window.__LIFE_MODERN__ || {};
-  const strip = s => s.replace(/(国|城|郡|部|镇|府|县|州|谷)$/, '');
-  if(d.era === '现代') return M[d.name] || A[d.name] || A[strip(d.name)] || null;
-  return A[d.name] || A[strip(d.name)] || M[d.name] || null;
-}
-let LIFE_NODES = [];      // 当前地区的历代地名节点（原始）
-let LIFE_GROUPS = [];     // 按朝代归并后的卡片组（一卡一朝）
+/* ---------- 前世今生：按「真实经纬度」就近聚类（不依赖错乱的 CSV 今地区）----------
+   同一绿洲在历代的不同古名（如 于阗/和阗/和田/斡端）坐标相邻 → 归为一处，
+   故按地理聚类即可正确「古今为同一地区」。聚类在 buildOasisClusters() 预生成。 */
+let CLUSTER_OF = {};      // townId -> 聚类下标
+let CLUSTERS   = [];      // 聚类下标 -> [town,...]
+let LIFE_GROUPS = [];     // 当前展示：按朝代归并的卡片组（一卡一朝）
 let lifeIndex = 0;        // 当前置顶（front）卡片下标
 
-function showLife(d){
+/* 并查集：把相距 ≤ TH 公里的城镇点连成一处绿洲（链式传递可串起绿洲在历代的迁移）*/
+function buildOasisClusters(){
+  CLUSTER_OF = {}; CLUSTERS = [];
+  const n = TOWNS.length;
+  if(!n) return;
+  const parent = TOWNS.map((_,i)=>i);
+  const find = x => { while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; } return x; };
+  const TH = 26;           // 公里阈值：和田绿洲跨度内相连、又不串接邻近不同绿洲
+  for(let i=0;i<n;i++){
+    for(let j=i+1;j<n;j++){
+      const a=TOWNS[i], b=TOWNS[j];
+      const mid=(a.lat+b.lat)/2*Math.PI/180;
+      const dx=(b.lng-a.lng)*Math.cos(mid)*111.32;
+      const dy=(b.lat-a.lat)*111.32;
+      if(dx*dx+dy*dy <= TH*TH){ const ra=find(i), rb=find(j); if(ra!==rb) parent[ra]=rb; }
+    }
+  }
+  const byRoot={};
+  for(let i=0;i<n;i++){ const r=find(i); (byRoot[r]||(byRoot[r]=[])).push(TOWNS[i]); }
+  Object.keys(byRoot).forEach(r=>{
+    const cid=CLUSTERS.length; CLUSTERS.push(byRoot[r]);
+    byRoot[r].forEach(t=>CLUSTER_OF[t.id]=cid);
+  });
+}
+
+/* 取某城镇点的简介：优先古籍地理描述，其次网络资料概述 */
+function lifeDescFor(t){
+  const key = t.era + '|' + t.name;
+  const tt = (window.__TOWN_TEXTS__ || {})[key];
+  const wt = (window.__WEB_TEXTS__  || {})[key];
+  let s = (tt && (tt.geo || tt.products)) || (wt && wt.summary) || '';
+  return (s || '').trim();
+}
+
+function showLife(d, kind){
   const block   = document.getElementById('lifeBlock');
   const divider = document.getElementById('lifeDivider');
   const title   = document.getElementById('lifeSecTitle');
+  const regionEl= document.getElementById('lifeRegion');
   if(!block) return;
-  const LIFE = window.__LIFE__ || {};
-  const region = lifeRegionFor(d);
-  const data = region ? LIFE[region] : null;
-  // 无前世今生：隐藏整节（与「网络资料」同样的显隐方式）
-  if(!data || !data.nodes || !data.nodes.length){
-    block.style.display = 'none';
-    if(divider) divider.style.display = 'none';
-    if(title)   title.style.display   = 'none';
-    return;
-  }
-  LIFE_NODES = data.nodes;
+  const hideAll = ()=>{
+    block.style.display='none';
+    if(divider) divider.style.display='none';
+    if(title)   title.style.display='none';
+  };
+  // 仅城镇点参与前世今生（文保点不纳入）
+  if(kind!=='town' || !d || CLUSTER_OF[d.id]==null){ hideAll(); return; }
+  const cluster = CLUSTERS[CLUSTER_OF[d.id]] || [];
+  // 按朝代归并（ERA_ORDER 古→今）
+  const byEra = {};
+  cluster.forEach(t=>{ (byEra[t.era] || (byEra[t.era]=[])).push(t); });
+  const eras = ERA_ORDER.filter(e=>byEra[e]);
+  // 仅当该地跨 ≥2 个朝代才有「前世今生」可言
+  if(eras.length < 2){ hideAll(); return; }
+  LIFE_GROUPS = eras.map(e=>({
+    era: e,
+    cities: byEra[e].map(t=>({ name:t.name, desc:lifeDescFor(t) }))
+  }));
+  // 从最早的朝代起（古→今），完整呈现叠层
   lifeIndex = 0;
-  document.getElementById('lifeRegion').textContent = '今 · ' + data.region;
+  // 今地标签：取该绿洲「现代」城镇名；无则不显示
+  const modern = cluster.find(t=>t.era==='现代');
+  if(regionEl){
+    if(modern){ regionEl.textContent = '今 · ' + modern.name; regionEl.style.display=''; }
+    else regionEl.style.display='none';
+  }
   buildLifeDeck();
-  if(divider) divider.style.display = '';
-  if(title)   title.style.display   = '';
-  block.style.display = '';
+  if(divider) divider.style.display='';
+  if(title)   title.style.display='';
+  block.style.display='';
 }
 
-/* 构建叠层卡：一卡一朝；同一朝代的多座古城并列于同一张卡 */
+/* 构建叠层卡：一卡一朝；同一朝代的多座古城并列于同一张卡（LIFE_GROUPS 已就绪）*/
 function buildLifeDeck(){
   const deck = document.getElementById('lifeDeck');
   if(!deck) return;
-  // 按朝代归并（保持出现顺序）
-  const idxByEra = {};
-  LIFE_GROUPS = [];
-  LIFE_NODES.forEach(n=>{
-    if(!(n.era in idxByEra)){ idxByEra[n.era] = LIFE_GROUPS.length; LIFE_GROUPS.push({era:n.era, cities:[]}); }
-    LIFE_GROUPS[idxByEra[n.era]].cities.push(n);
-  });
   const M = LIFE_GROUPS.length;
   deck.innerHTML = LIFE_GROUPS.map((g,i)=>{
-    const cities = g.cities.map(n=>{
-      const desc = (n.geo || n.products || n.pop || '').trim();
-      return `<div class="lc-city"><div class="lc-name">${n.name}</div>`+
+    const cities = g.cities.map(c=>{
+      const desc = (c.desc || '').trim();
+      return `<div class="lc-city"><div class="lc-name">${c.name}</div>`+
              `<div class="lc-desc${desc?'':' lc-empty'}">${desc || '〔暂无记载〕'}</div></div>`;
     }).join('');
     return `<div class="life-deck-card" data-i="${i}">`+
@@ -1154,6 +1192,7 @@ if(_toggleGhost) _toggleGhost.onchange=e=>{
     TOWNS = td.towns;
     RELICS = rd.relics;
     buildOasisLife();
+    buildOasisClusters();          // 前世今生：按真实坐标就近聚类（古今同地）
     GEO_FULL = window.__GEO_FULL__ || null;
     GEO_BORDER = window.__GEO_BORDER__ || null;
     buildTicks();
