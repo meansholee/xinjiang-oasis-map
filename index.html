@@ -58,29 +58,19 @@
       <div class="card-divider" id="webDivider" style="display:none"></div>
       <div class="card-section-title" id="cardSec3" style="display:none">网络资料</div>
       <div class="ancient-text" id="webText" style="display:none"></div>
-    </aside>
 
-    <!-- 前世今生 · 左下角触发按钮（仅当该地有时间轴时浮现）-->
-    <button id="lifeBtn" class="hidden" aria-label="展开前世今生时间轴">
-      <span class="life-btn-orb"></span>
-      <span class="life-btn-text">前世今生</span>
-      <span class="life-btn-arrow" aria-hidden="true">›</span>
-    </button>
-
-    <!-- 前世今生 · 左下角卡片（3D 鎏金辉光 + 竖向纪年时间轴）-->
-    <aside id="lifeCard" class="hidden" aria-label="前世今生时间轴">
-      <div class="life-card-3d">
-        <div class="life-fx life-fx-nebula"></div>
-        <div class="life-fx life-fx-aurora"></div>
-        <div class="life-fx life-fx-holo"></div>
-        <div class="life-fx life-fx-dust"></div>
-        <div class="life-glaze"></div>
-        <button id="lifeClose" aria-label="关闭前世今生">✕</button>
-        <div class="life-inner">
-          <div class="life-title">前 世 今 生</div>
-          <div class="life-region" id="lifeRegion">—</div>
-          <div class="life-timeline" id="lifeTimeline"></div>
+      <!-- 前世今生 · 历代地名「堆叠卡牌」（与上方各栏目同款标题）-->
+      <div class="card-divider" id="lifeDivider" style="display:none"></div>
+      <div class="card-section-title" id="lifeSecTitle" style="display:none">前世今生</div>
+      <div id="lifeBlock" class="life-block" style="display:none">
+        <div class="life-region" id="lifeRegion">—</div>
+        <div class="life-deck" id="lifeDeck"></div>
+        <div class="life-nav">
+          <button id="lifePrev" class="life-nav-btn" aria-label="上一朝">‹</button>
+          <span class="life-count" id="lifeCount">1 / 1</span>
+          <button id="lifeNext" class="life-nav-btn" aria-label="下一朝">›</button>
         </div>
+        <div class="life-hint">点击卡片或 ‹ › 逐朝翻阅</div>
       </div>
     </aside>
 
@@ -96,7 +86,6 @@
         <div class="track-ticks" id="trackTicks"></div>
       </div>
       <div class="era-readout">
-        <span id="eraName">西汉</span>
         <span id="eraCount" class="count">— 城</span>
       </div>
     </footer>
@@ -120,6 +109,47 @@
       </div>
     </div>
   </div>
+
+  <!-- 顶部菜单栏（淡米色）-->
+  <nav id="topnav">
+    <div class="nav-group nav-left">
+      <a class="nav-item active" data-nav="home">首页</a>
+      <a class="nav-item" data-nav="map">历史地图</a>
+    </div>
+    <div class="nav-center">
+      <div class="nav-search">
+        <input id="navSearch" type="text" autocomplete="off" placeholder="搜索古城地名…" aria-label="搜索地名" />
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle><line x1="20" y1="20" x2="16.65" y2="16.65"></line>
+        </svg>
+        <div id="navSearchResults" class="search-results hidden"></div>
+      </div>
+    </div>
+    <div class="nav-group nav-right">
+      <a class="nav-item" data-nav="refs">参考资料</a>
+      <a class="nav-item" data-nav="about">关于我们</a>
+    </div>
+  </nav>
+
+  <!-- 参考资料 · 页面（文献待补）-->
+  <section id="refsPage" class="site-page hidden" aria-label="参考资料">
+    <div class="page-inner">
+      <h2 class="page-title">参 考 资 料</h2>
+      <div class="page-rule"></div>
+      <p class="page-placeholder">〔 文献资料待补 〕</p>
+    </div>
+  </section>
+
+  <!-- 关于我们 · 页面 -->
+  <section id="aboutPage" class="site-page hidden" aria-label="关于我们">
+    <div class="page-inner about-inner">
+      <h2 class="page-title">关 于 我 们</h2>
+      <div class="page-rule"></div>
+      <div class="about-row about-names">李明选　李斯琪　张力文</div>
+      <div class="about-row">北京大学建筑与景观设计学院</div>
+      <div class="about-row about-contact">联系我们：<a href="mailto:mingxuanli25@stu.pku.edu.cn">mingxuanli25@stu.pku.edu.cn</a></div>
+    </div>
+  </section>
 
   <script src="vendor/d3.v7.min.js"></script>
   <script src="data.js"></script>

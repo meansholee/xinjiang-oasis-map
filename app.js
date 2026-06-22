@@ -17,6 +17,7 @@ let playing = false, playTimer = null;
 let showTown = true;
 let showRelic = true;
 let showGhost = true;             // 幽灵图层：已消亡绿洲的灰色残影
+let searchHL = null;              // 搜索高亮的城镇 id（其余点位灰显）
 
 /* 绿洲生命谱：按"名称"聚合，记录每个绿洲存续的朝代区间。
    同名城邦在多个朝代出现 → 视为同一绿洲的延续；其"最后出现朝代"之后即视为消亡。 */
@@ -120,7 +121,7 @@ function drawBgStatic(){
    1. fitExtent：d3.geoBounds 用球面几何误判为「整个地球减去新疆」→ 改用手动平面 fit
    2. geoPath：d3.geoPath 内置球面反子午线裁剪同样受影响 → tracePath 改用直接投影，绕过裁剪 */
 function setupProjection(){
-  const padX = 54, padTop = 30, padBottom = 118;  // 上边距收紧→版图上移放大，下边距不变→底部不下探（避让时间轴）
+  const padX = 54, padTop = 72, padBottom = 118;  // 上边距留出顶部菜单栏(46px)；下边距避让时间轴
   const p = d3.geoMercator().scale(1).translate([0,0]).center([0,0]);
   const corners = [
     [GEO_BOUNDS.lng[0], GEO_BOUNDS.lat[0]],
@@ -179,6 +180,30 @@ function setupZoom(){
     .on('start', ()=> mapPan.classList.add('grabbing'))
     .on('end',   ()=> mapPan.classList.remove('grabbing'));
   d3.select(mapPan).call(zoomBehavior);
+  // 与地图的任何交互（平移/点击空白/点击点位）都算「下一步操作」→ 清除搜索高亮
+  mapPan.addEventListener('pointerdown', clearSearchHighlight);
+}
+
+/* ---------- 搜索高亮：灰显其余点位、突出选中点（变红 + 脉冲）---------- */
+function applySearchHighlight(town){
+  if(!town) return;
+  setEra(town.eraIndex);                 // 切到该城所属朝代（点位按朝代渲染）
+  if(svg.empty()) return;
+  svg.classed('search-mode', true);
+  const hit = svg.selectAll('g.town').filter(d => d && d.id === town.id);
+  if(hit.empty()){ svg.classed('search-mode', false); return; }
+  hit.classed('search-hit', true).raise();
+  hit.select('.label').attr('opacity', 1);
+  hit.append('circle').attr('class','search-pulse').attr('r', 10);
+  searchHL = town.id;
+}
+function clearSearchHighlight(){
+  if(searchHL == null) return;
+  searchHL = null;
+  svg.classed('search-mode', false);
+  svg.selectAll('g.town.search-hit').classed('search-hit', false)
+     .select('.label').attr('opacity', 0);
+  svg.selectAll('circle.search-pulse').remove();
 }
 function syncZoomExtent(){
   if(!zoomBehavior) return;
@@ -757,6 +782,7 @@ function deathFlash(town){
    历史名片（点击交互） + 占位数据
    ============================================================ */
 function showCard(d, kind){
+  clearSearchHighlight();        // 查看任一点位＝下一步操作，恢复常规点位
   document.getElementById('card').classList.remove('hidden');
   document.getElementById('cardName').textContent = d.name || '（无名）';
   document.getElementById('cardSeal').textContent = (d.name||'城').slice(0,1);
@@ -884,33 +910,107 @@ function lifeRegionFor(d){
   if(d.era === '现代') return M[d.name] || A[d.name] || A[strip(d.name)] || null;
   return A[d.name] || A[strip(d.name)] || M[d.name] || null;
 }
+let LIFE_NODES = [];      // 当前地区的历代地名节点（原始）
+let LIFE_GROUPS = [];     // 按朝代归并后的卡片组（一卡一朝）
+let lifeIndex = 0;        // 当前置顶（front）卡片下标
+
 function showLife(d){
-  const card = document.getElementById('lifeCard');
-  const btn  = document.getElementById('lifeBtn');
-  if(!card) return;
+  const block   = document.getElementById('lifeBlock');
+  const divider = document.getElementById('lifeDivider');
+  const title   = document.getElementById('lifeSecTitle');
+  if(!block) return;
   const LIFE = window.__LIFE__ || {};
   const region = lifeRegionFor(d);
   const data = region ? LIFE[region] : null;
-  // 无时间轴：按钮与卡片皆隐藏
+  // 无前世今生：隐藏整节（与「网络资料」同样的显隐方式）
   if(!data || !data.nodes || !data.nodes.length){
-    card.classList.add('hidden');
-    if(btn) btn.classList.add('hidden');
+    block.style.display = 'none';
+    if(divider) divider.style.display = 'none';
+    if(title)   title.style.display   = 'none';
     return;
   }
+  LIFE_NODES = data.nodes;
+  lifeIndex = 0;
   document.getElementById('lifeRegion').textContent = '今 · ' + data.region;
-  document.getElementById('lifeTimeline').innerHTML = data.nodes.map(n=>{
-    const desc = (n.geo || n.products || n.pop || '').trim();
-    return `<div class="life-node"><span class="life-era">${n.era}</span>`+
-           `<div class="life-name">${n.name}</div>`+
-           (desc ? `<div class="life-desc">${desc}</div>` : '')+
+  buildLifeDeck();
+  if(divider) divider.style.display = '';
+  if(title)   title.style.display   = '';
+  block.style.display = '';
+}
+
+/* 构建叠层卡：一卡一朝；同一朝代的多座古城并列于同一张卡 */
+function buildLifeDeck(){
+  const deck = document.getElementById('lifeDeck');
+  if(!deck) return;
+  // 按朝代归并（保持出现顺序）
+  const idxByEra = {};
+  LIFE_GROUPS = [];
+  LIFE_NODES.forEach(n=>{
+    if(!(n.era in idxByEra)){ idxByEra[n.era] = LIFE_GROUPS.length; LIFE_GROUPS.push({era:n.era, cities:[]}); }
+    LIFE_GROUPS[idxByEra[n.era]].cities.push(n);
+  });
+  const M = LIFE_GROUPS.length;
+  deck.innerHTML = LIFE_GROUPS.map((g,i)=>{
+    const cities = g.cities.map(n=>{
+      const desc = (n.geo || n.products || n.pop || '').trim();
+      return `<div class="lc-city"><div class="lc-name">${n.name}</div>`+
+             `<div class="lc-desc${desc?'':' lc-empty'}">${desc || '〔暂无记载〕'}</div></div>`;
+    }).join('');
+    return `<div class="life-deck-card" data-i="${i}">`+
+           `<span class="lc-ord">第 ${i+1} 世 · 共 ${M} 世</span>`+
+           `<span class="lc-era">${g.era}</span>`+
+           `<div class="lc-body">${cities}</div>`+
            `</div>`;
   }).join('');
-  const inner = card.querySelector('.life-inner');
-  if(inner) inner.scrollTop = 0;
-  // 有时间轴：默认折叠为左下角按钮，点击后再展开卡片
-  card.classList.add('hidden');
-  if(btn) btn.classList.remove('hidden');
+  // 点击置顶卡 → 翻到下一朝
+  deck.querySelectorAll('.life-deck-card').forEach(c=>{
+    c.addEventListener('click',()=>{ if(c.classList.contains('front')) lifeGo(1); });
+  });
+  updateLifeDeck();
 }
+
+/* 依据 lifeIndex 重排各卡的纵深层叠 / 翻页姿态 */
+function updateLifeDeck(){
+  const deck = document.getElementById('lifeDeck');
+  if(!deck) return;
+  const N = LIFE_GROUPS.length;
+  deck.querySelectorAll('.life-deck-card').forEach((c,i)=>{
+    const pos = i - lifeIndex;
+    let t, op, z, front = false;
+    if(pos === 0){
+      t = 'translateY(0) translateZ(0) scale(1) rotate(0deg)'; op = 1; z = 100; front = true;
+    } else if(pos < 0){
+      // 已翻过：上飞旋出
+      t = `translateY(-128%) translateZ(0) scale(.92) rotate(${-8 + pos*1.5}deg)`;
+      op = 0; z = 10 + pos;
+    } else {
+      // 待展示：叠在身后，底缘渐次露出
+      const p = Math.min(pos, 4);
+      t = `translateY(${p*10}px) translateZ(${-p*34}px) scale(${(1 - p*0.05).toFixed(3)}) rotate(0deg)`;
+      op = pos > 4 ? 0 : Math.max(0, 1 - p*0.22);
+      z = 100 - pos;
+    }
+    c.style.transform = t;
+    c.style.opacity = op;
+    c.style.zIndex = z;
+    c.style.pointerEvents = front ? 'auto' : 'none';
+    c.classList.toggle('front', front);
+  });
+  const cnt = document.getElementById('lifeCount');
+  if(cnt) cnt.textContent = `${lifeIndex+1} / ${N}`;
+  const prev = document.getElementById('lifePrev');
+  const next = document.getElementById('lifeNext');
+  if(prev) prev.disabled = lifeIndex <= 0;
+  if(next) next.disabled = lifeIndex >= N-1;
+}
+
+function lifeGo(step){
+  const N = LIFE_GROUPS.length;
+  if(!N) return;
+  lifeIndex = Math.max(0, Math.min(N-1, lifeIndex + step));
+  updateLifeDeck();
+}
+
 function barRow(label,val,tag){
   return `<div class="bar-row">
     <div class="bar-label"><span>${label} <small style="color:#a08a5e">${tag}</small></span><span>${val}</span></div>
@@ -919,27 +1019,19 @@ function barRow(label,val,tag){
 document.getElementById('cardClose').onclick =
   ()=>document.getElementById('card').classList.add('hidden');
 
-/* 前世今生：左下角按钮 ⇄ 卡片 的展开/折叠 */
-const _lifeCardEl = document.getElementById('lifeCard');
-const _lifeBtnEl  = document.getElementById('lifeBtn');
-function openLife(){
-  if(!_lifeCardEl) return;
-  if(_lifeBtnEl) _lifeBtnEl.classList.add('hidden');
-  _lifeCardEl.classList.remove('hidden');
-  const inner = _lifeCardEl.querySelector('.life-inner');
-  if(inner) inner.scrollTop = 0;
-}
-function closeLife(){
-  if(_lifeCardEl) _lifeCardEl.classList.add('hidden');
-  if(_lifeBtnEl)  _lifeBtnEl.classList.remove('hidden');   // 折叠回按钮
-}
-if(_lifeBtnEl) _lifeBtnEl.onclick = openLife;
-document.getElementById('lifeClose').onclick = closeLife;
+/* 前世今生：朝代翻页 */
+(function lifeCtrlInit(){
+  const prev = document.getElementById('lifePrev');
+  const next = document.getElementById('lifeNext');
+  if(prev) prev.onclick = ()=>lifeGo(-1);
+  if(next) next.onclick = ()=>lifeGo(1);
+})();
 
 /* ============================================================
    时间轴
    ============================================================ */
 function setEra(i){
+  clearSearchHighlight();        // 切换朝代＝下一步操作，恢复常规点位
   const target = Math.max(0, Math.min(ERA_ORDER.length-1, i));
   prevEra = curEra;
   curEra = target;
@@ -956,7 +1048,8 @@ function setEra(i){
   if(fill) fill.style.width = (frac*100) + '%';
   const rail = document.getElementById('eraRail');
   if(rail){ rail.setAttribute('aria-valuetext', name); rail.setAttribute('aria-valuenow', curEra); }
-  document.getElementById('eraName').textContent = name;
+  const _eraName = document.getElementById('eraName');
+  if(_eraName) _eraName.textContent = name;   // 右端朝代名已移除，左上角牌匾仍显示
   document.getElementById('eraNameBig').textContent = name;
   const n = townsOfEra(curEra).length;
   document.getElementById('eraCount').textContent = `${n} 城`;
@@ -1130,60 +1223,100 @@ function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f
     cover.addEventListener('mouseenter', ()=>{ hovered = true; tr = MAX_R; start(); });
     cover.addEventListener('mouseleave', ()=>{ hovered = false; tr = 0; });
   }
-
-  let entered = false;
-  enter.addEventListener('click', ()=>{
-    if(entered) return; entered = true;
-    cover.classList.add('cover-exit');
-    setTimeout(()=>{ cover.style.display = 'none'; }, 950);
-  });
+  // 进入按钮的跳转交由顶部菜单的 siteNav 统一处理
 })();
 
 /* ============================================================
-   前世今生 · 3D 倾斜交互
-   鼠标悬停时卡体随光标轻倾（±6°），离开后回归并缓缓自摇。
-   概念取自交互式 3D 名片，幅度收敛以保证时间轴可读。
+   顶部菜单栏 · 页面路由（首页/历史地图/参考资料/关于我们）
    ============================================================ */
-(function lifeTilt(){
-  const card = document.getElementById('lifeCard');
-  if(!card) return;
-  const el = card.querySelector('.life-card-3d');
-  if(!el) return;
-  if(REDUCE_MOTION) return;            // 减少动态：不倾斜、不自摇
+(function siteNav(){
+  const cover = document.getElementById('cover');
+  const refs  = document.getElementById('refsPage');
+  const about = document.getElementById('aboutPage');
 
-  let hovering = false;
-  let rx = 0, ry = 0;                   // 当前角度
-  let trx = 0, tryy = 0;               // 目标角度
-  let sway = 0;                         // 自摇相位
-
-  function frame(){
-    // 卡片折叠时不计算，避免空转
-    if(card.classList.contains('hidden')){
-      requestAnimationFrame(frame); return;
-    }
-    if(hovering){
-      rx += (trx  - rx) * 0.12;
-      ry += (tryy - ry) * 0.12;
-    } else {
-      sway += 0.012;
-      trx  = Math.sin(sway)       * 2.4;
-      tryy = Math.cos(sway * 0.8) * 3.0;
-      rx += (trx  - rx) * 0.05;
-      ry += (tryy - ry) * 0.05;
-    }
-    el.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
-    requestAnimationFrame(frame);
+  function hideCover(){
+    if(!cover || cover.style.display === 'none') return;
+    cover.classList.add('cover-exit');
+    setTimeout(()=>{ cover.style.display = 'none'; }, 900);
+  }
+  function showCover(){
+    if(!cover) return;
+    cover.style.display = '';
+    void cover.offsetWidth;                  // 触发重排 → 淡入动画生效
+    cover.classList.remove('cover-exit');
+  }
+  function setActive(p){
+    document.querySelectorAll('#topnav .nav-item').forEach(a=>
+      a.classList.toggle('active', a.dataset.nav === p));
+  }
+  function showPage(p){
+    if(refs)  refs.classList.toggle('hidden',  p !== 'refs');
+    if(about) about.classList.toggle('hidden', p !== 'about');
+    if(p === 'home') showCover(); else hideCover();
+    setActive(p);
   }
 
-  el.addEventListener('mousemove', e=>{
-    const r = el.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width  - 0.5;
-    const py = (e.clientY - r.top)  / r.height - 0.5;
-    trx  = -py * 12;                    // 上下倾斜 ±6°
-    tryy =  px * 12;                    // 左右倾斜 ±6°
+  document.querySelectorAll('#topnav .nav-item').forEach(a=>{
+    a.addEventListener('click', e=>{ e.preventDefault(); showPage(a.dataset.nav); });
   });
-  el.addEventListener('mouseenter', ()=>{ hovering = true;  el.classList.add('glow'); });
-  el.addEventListener('mouseleave', ()=>{ hovering = false; el.classList.remove('glow'); });
+  const enter = document.getElementById('enterBtn');
+  if(enter) enter.addEventListener('click', ()=> showPage('map'));
+})();
 
-  requestAnimationFrame(frame);
+/* ============================================================
+   顶栏搜索 · 按地名检索城镇（同名多朝代分列），选中后定位并高亮
+   ============================================================ */
+(function searchInit(){
+  const input = document.getElementById('navSearch');
+  const box   = document.getElementById('navSearchResults');
+  if(!input || !box) return;
+
+  function render(q){
+    q = (q || '').trim();
+    if(!q){ box.classList.add('hidden'); box.innerHTML = ''; return; }
+    const ql = q.toLowerCase();
+    const seen = {}, res = [];
+    for(const t of TOWNS){
+      if(!t.name || !t.name.toLowerCase().includes(ql)) continue;
+      const k = t.name + '|' + t.era;
+      if(seen[k]) continue; seen[k] = 1;
+      res.push(t);
+    }
+    res.sort((a,b)=>{
+      const ea = a.name === q ? 0 : 1, eb = b.name === q ? 0 : 1;
+      if(ea !== eb) return ea - eb;
+      if(a.name !== b.name) return a.name.localeCompare(b.name, 'zh');
+      return a.eraIndex - b.eraIndex;
+    });
+    const top = res.slice(0, 40);
+    box.innerHTML = top.length
+      ? top.map(t=>`<div class="search-row" data-id="${t.id}"><span class="sr-name">${t.name}</span><span class="sr-era">${t.era}</span></div>`).join('')
+      : '<div class="search-empty">未找到匹配地名</div>';
+    box.classList.remove('hidden');
+  }
+
+  function pick(town){
+    if(!town) return;
+    box.classList.add('hidden');
+    input.value = town.name;
+    input.blur();
+    const mapNav = document.querySelector('#topnav .nav-item[data-nav="map"]');
+    if(mapNav) mapNav.click();        // 确保在地图页
+    stopPlay();
+    applySearchHighlight(town);
+  }
+
+  input.addEventListener('input', ()=> render(input.value));
+  input.addEventListener('focus', ()=>{ if(input.value.trim()) render(input.value); });
+  input.addEventListener('keydown', e=>{
+    if(e.key === 'Escape'){ input.value = ''; box.classList.add('hidden'); input.blur(); }
+    else if(e.key === 'Enter'){ const first = box.querySelector('.search-row'); if(first) first.click(); }
+  });
+  box.addEventListener('click', e=>{
+    const row = e.target.closest('.search-row'); if(!row) return;
+    pick(TOWNS.find(t=> t.id === +row.dataset.id));
+  });
+  document.addEventListener('click', e=>{
+    if(!e.target.closest('.nav-search')) box.classList.add('hidden');
+  });
 })();

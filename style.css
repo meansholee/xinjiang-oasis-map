@@ -40,7 +40,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
   border-top:1px solid rgba(0,0,0,.3);}
 
 /* 题跋 · 左上（横向题图 千年绿洲，下方横排 副题 + 朝代牌匾）*/
-#titleblock{position:absolute;top:26px;left:20px;z-index:20;
+#titleblock{position:absolute;top:60px;left:20px;z-index:20;
   display:flex;flex-direction:column;align-items:flex-start;gap:14px;}
 .title-img{width:clamp(330px,28vw,440px);height:auto;display:block;
   filter:drop-shadow(0 0 12px rgba(255,255,255,.8)) drop-shadow(0 2px 6px rgba(255,255,255,.55));}
@@ -65,7 +65,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
 .xy-panel{position:relative;}
 
 /* 图例 */
-#legend{position:absolute;top:54px;right:44px;z-index:20;
+#legend{position:absolute;bottom:120px;left:24px;z-index:20;
   background:var(--glass-bg);
   -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
   border:var(--glass-border);border-radius:14px;
@@ -93,7 +93,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
 .legend-toggle + .legend-toggle{margin-top:6px;padding-top:0;border-top:none;}
 
 /* 历史名片 */
-#card{position:absolute;top:0;right:0;height:100%;width:384px;z-index:40;
+#card{position:absolute;top:46px;right:0;height:calc(100% - 46px);width:384px;z-index:40;
   background:var(--glass-bg);
   -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
   border-left:var(--glass-border);
@@ -137,11 +137,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
 
 /* 时间轴 · 底部居中横排（卷轴纪年）*/
 #timeline{position:absolute;bottom:34px;left:0;right:0;margin:0 auto;z-index:25;
-  display:flex;flex-direction:row;align-items:center;gap:28px;width:min(82vw,960px);
+  display:flex;flex-direction:row;align-items:center;gap:22px;width:min(74vw,860px);
   background:var(--glass-bg);
   -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
-  border:var(--glass-border);border-radius:46px;
-  padding:16px 38px;
+  border:var(--glass-border);border-radius:38px;
+  padding:10px 30px;
   box-shadow:var(--glass-shadow);
   animation:panelIn .7s cubic-bezier(.2,.7,.2,1) both;}
 #playBtn{flex:none;width:44px;height:44px;border-radius:50%;cursor:pointer;
@@ -175,7 +175,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
   transition:color .2s,transform .2s;}
 .track-ticks span:hover{color:#5c4322;}
 .track-ticks span.active{color:var(--vermilion);font-weight:700;transform:translateY(-2px);}
-.era-readout{flex:none;text-align:center;min-width:92px;position:relative;padding-left:24px;}
+.era-readout{flex:none;text-align:center;min-width:50px;position:relative;padding-left:18px;}
 .era-readout::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);
   width:1px;height:32px;background:linear-gradient(180deg,transparent,rgba(139,69,19,0.3),transparent);}
 .era-readout #eraName{display:block;font-family:var(--serif-disp);font-size:24px;font-weight:700;
@@ -213,138 +213,57 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
   padding:12px 14px; border-left:3px solid #1f4f63; border-radius:0 6px 6px 0; }
 
 /* ============================================================
-   前世今生 · 左下角触发按钮 + 3D 鎏金辉光卡片
-   （概念取自交互式 3D 名片：鼠标倾斜 / 星云·极光·全息流光 / 浮金尘，
-    以本站鎏金·青绿·绢本国风重绘）
+   前世今生 · 历史名片内「历代地名堆叠卡牌」栏目
+   标题沿用 .card-section-title（与「舆地数据/古籍载录」一致），
+   内容为叠层卡牌（取自 animated cards stack：纵深层叠 + 翻页上飞）
    ============================================================ */
+.life-block{margin-top:2px;}
+.life-region{font-size:11.5px;color:#9a7b48;letter-spacing:.06em;margin-bottom:10px;}
 
-/* —— 触发按钮：鎏金药丸 + 呼吸金珠（提示此地藏有时间轴）—— */
-#lifeBtn{position:absolute;left:24px;bottom:30px;z-index:38;
-  display:inline-flex;align-items:center;gap:10px;
-  padding:12px 18px 12px 15px;cursor:pointer;
-  font-family:var(--serif-disp);font-size:15px;font-weight:700;
-  letter-spacing:0.18em;text-indent:0.18em;color:#3a2a12;
-  background:linear-gradient(135deg,#fbf0d2 0%,#e6c478 48%,#c79a4a 100%);
-  border:1px solid #fbf0d2;border-radius:30px;
-  box-shadow:0 8px 22px rgba(60,40,20,.34),inset 0 1px 0 rgba(255,255,255,.6),
-             0 0 0 4px rgba(199,154,74,.14);
-  transform:translateY(0);opacity:1;
-  transition:transform .42s cubic-bezier(.34,1.2,.4,1),opacity .35s,box-shadow .3s;}
-#lifeBtn.hidden{transform:translateY(28px);opacity:0;pointer-events:none;}
-#lifeBtn:hover{transform:translateY(-3px) scale(1.04);
-  box-shadow:0 14px 30px rgba(199,154,74,.5),inset 0 1px 0 rgba(255,255,255,.7),
-             0 0 0 5px rgba(199,154,74,.22);}
-#lifeBtn:active{transform:translateY(-1px) scale(1.01);}
-.life-btn-orb{width:12px;height:12px;border-radius:50%;flex:none;
-  background:radial-gradient(circle at 35% 30%,#fff7e0,#e6c478 55%,#a8731f);
-  animation:lifeOrb 2.4s ease-in-out infinite;}
-@keyframes lifeOrb{
-  0%,100%{box-shadow:0 0 0 3px rgba(255,247,224,.30),0 0 8px rgba(230,196,120,.7);}
-  50%    {box-shadow:0 0 0 5px rgba(255,247,224,.15),0 0 16px rgba(230,196,120,1);}}
-.life-btn-arrow{font-size:18px;font-weight:400;color:#5c4322;line-height:1;
-  transition:transform .3s;}
-#lifeBtn:hover .life-btn-arrow{transform:translateX(3px);}
+/* —— 叠层卡：一卡一朝（同朝多城并列）；纵深层叠，翻页上飞 —— */
+.life-deck{position:relative;height:176px;perspective:1100px;}
+.life-deck-card{position:absolute;inset:0;display:flex;flex-direction:column;
+  border-radius:13px;padding:12px 14px 11px;
+  background:linear-gradient(155deg,#f8f1df 0%,#f1e6cb 60%,#ead9b4 100%);
+  border:1px solid rgba(199,154,74,.5);
+  box-shadow:0 9px 22px rgba(60,40,20,.26),inset 0 1px 0 rgba(255,255,255,.6);
+  transform-style:preserve-3d;backface-visibility:hidden;overflow:hidden;
+  transition:transform .6s cubic-bezier(.34,1.1,.4,1),opacity .5s ease;
+  will-change:transform,opacity;}
+.life-deck-card::before{content:"";position:absolute;inset:5px;border-radius:9px;
+  border:1px solid rgba(199,154,74,.26);pointer-events:none;}
+.life-deck-card.front{cursor:pointer;}
+.lc-ord{font-size:10.5px;color:#a08a5e;letter-spacing:.16em;}
+.lc-era{align-self:flex-start;margin:5px 0 8px;
+  font-family:var(--serif-disp);font-size:12.5px;font-weight:700;color:#f4e2b8;
+  background:linear-gradient(135deg,var(--seal-red),#8a2417);
+  padding:2px 10px;border-radius:4px;letter-spacing:.12em;
+  box-shadow:0 2px 6px rgba(120,30,18,.4);}
+/* 卡内容：可滚动（同朝多城较长时）*/
+.lc-body{flex:1;overflow-y:auto;padding-right:3px;}
+.lc-city{margin-bottom:8px;}
+.lc-city:last-child{margin-bottom:0;}
+.lc-city + .lc-city{padding-top:8px;border-top:1px dashed rgba(199,154,74,.4);}
+.lc-name{font-family:var(--serif-disp);font-size:16px;font-weight:700;color:#2a1c0e;
+  letter-spacing:.04em;line-height:1.25;margin-bottom:3px;}
+.lc-desc{font-size:11.5px;color:#5c4322;line-height:1.65;text-align:justify;}
+.lc-empty{color:#9a8456;font-style:italic;}
 
-/* —— 卡片外壳：仅作 3D 透视容器与开合过渡 —— */
-#lifeCard{position:absolute;left:24px;bottom:30px;z-index:38;
-  width:360px;perspective:1400px;
-  transform:translateY(0);opacity:1;
-  transition:transform .5s cubic-bezier(.34,1.2,.4,1),opacity .4s;}
-#lifeCard.hidden{transform:translateY(34px) scale(.96);opacity:0;pointer-events:none;}
-/* 外圈鎏金辉光呼吸（置于卡体外层，不被卡体 overflow 裁切）*/
-#lifeCard::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:16px;
-  pointer-events:none;box-shadow:0 0 30px rgba(230,196,120,.45);
-  animation:lifeGlow 5.5s ease-in-out infinite;}
-@keyframes lifeGlow{0%,100%{opacity:.35;}50%{opacity:.85;}}
+/* —— 翻页导航 —— */
+.life-nav{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:10px;}
+.life-nav-btn{width:28px;height:28px;border-radius:50%;cursor:pointer;
+  border:1px solid rgba(199,154,74,.5);background:rgba(255,250,235,.6);
+  font-size:15px;line-height:1;color:#5c4322;
+  transition:background .2s,transform .2s,opacity .2s;}
+.life-nav-btn:hover{background:var(--gold-1);transform:scale(1.08);}
+.life-nav-btn:disabled{opacity:.3;cursor:default;transform:none;}
+.life-count{font-family:var(--serif-disp);font-size:12px;color:#7a6342;
+  letter-spacing:.1em;min-width:50px;text-align:center;}
+.life-hint{margin-top:6px;text-align:center;font-size:10px;color:#a08a5e;letter-spacing:.04em;}
 
-/* —— 倾斜卡体：绢本玻璃 + 鎏金描边 + 辉光呼吸 —— */
-.life-card-3d{position:relative;border-radius:16px;overflow:hidden;
-  transform-style:preserve-3d;will-change:transform;
-  background:linear-gradient(150deg,rgba(245,236,216,.60) 0%,
-            rgba(238,224,193,.56) 55%,rgba(232,214,176,.60) 100%);
-  -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
-  border:1px solid rgba(199,154,74,.45);
-  box-shadow:0 18px 46px rgba(60,40,20,.32),inset 0 1px 0 rgba(255,255,255,.45),
-             0 0 22px rgba(230,196,120,.22);
-  transition:transform .12s ease-out,box-shadow .5s;}
-.life-card-3d.glow{box-shadow:0 22px 54px rgba(60,40,20,.36),
-             inset 0 1px 0 rgba(255,255,255,.55),0 0 34px rgba(230,196,120,.5);}
-
-/* —— 氛围特效层（重绘自原星云/极光/全息/星尘）—— */
-.life-fx{position:absolute;inset:0;pointer-events:none;}
-.life-fx-nebula{z-index:1;
-  background:
-    radial-gradient(circle at 25% 24%, rgba(230,196,120,.55) 0%, transparent 55%),
-    radial-gradient(circle at 78% 72%, rgba(31,79,99,.30) 0%, transparent 55%),
-    radial-gradient(circle at 60% 32%, rgba(199,154,74,.32) 0%, transparent 50%);
-  animation:lifeNebula 16s ease-in-out infinite;}
-@keyframes lifeNebula{
-  0%,100%{transform:translate(0,0) scale(1);}
-  33%{transform:translate(4%,-3%) scale(1.08);}
-  66%{transform:translate(-3%,3%) scale(1.05);}}
-.life-fx-aurora{z-index:1;mix-blend-mode:screen;opacity:.6;
-  background:
-    radial-gradient(ellipse at 82% 16%, rgba(166,207,134,.42) 0%, transparent 55%),
-    radial-gradient(ellipse at 16% 84%, rgba(230,196,120,.40) 0%, transparent 60%);
-  animation:lifeAurora 13s ease-in-out infinite;}
-@keyframes lifeAurora{
-  0%,100%{transform:translate(3%,3%) scale(1);}
-  50%{transform:translate(-4%,-4%) scale(1.18);}}
-.life-fx-holo{z-index:2;mix-blend-mode:screen;opacity:.5;
-  background:linear-gradient(115deg,transparent 38%,rgba(255,247,224,.5) 47%,
-            rgba(244,226,184,.7) 50%,rgba(255,247,224,.5) 53%,transparent 62%);
-  background-size:250% 250%;
-  animation:lifeHolo 6.5s ease-in-out infinite;}
-@keyframes lifeHolo{0%{background-position:120% 0;}100%{background-position:-40% 100%;}}
-.life-fx-dust{z-index:2;opacity:.55;
-  background-image:
-    radial-gradient(1.5px 1.5px at 12% 18%, rgba(255,240,200,.9), transparent),
-    radial-gradient(1px 1px   at 30% 60%, rgba(230,196,120,.8), transparent),
-    radial-gradient(1.5px 1.5px at 55% 28%, rgba(255,240,200,.85), transparent),
-    radial-gradient(1px 1px   at 72% 72%, rgba(230,196,120,.8), transparent),
-    radial-gradient(1.5px 1.5px at 88% 40%, rgba(255,240,200,.9), transparent),
-    radial-gradient(1px 1px   at 45% 86%, rgba(230,196,120,.75), transparent),
-    radial-gradient(1px 1px   at 20% 90%, rgba(255,240,200,.8), transparent);
-  animation:lifeDust 9s ease-in-out infinite alternate;}
-@keyframes lifeDust{from{transform:translateY(0);opacity:.35;}to{transform:translateY(-10px);opacity:.7;}}
-/* 釉面：中心较实保证字迹清晰，四周渐透让辉光透出 */
-.life-glaze{position:absolute;inset:0;z-index:3;pointer-events:none;
-  background:radial-gradient(ellipse at 50% 44%, rgba(247,240,224,.82) 0%,
-            rgba(245,238,222,.55) 45%, rgba(244,234,210,.12) 100%);}
-
-/* —— 内容层（在特效之上，独立滚动）—— */
-.life-inner{position:relative;z-index:4;padding:18px 24px 22px;
-  max-height:min(56vh,560px);overflow-y:auto;}
-
-#lifeClose{position:absolute;top:14px;right:14px;z-index:6;
-  background:rgba(92,67,34,.10);border:none;
-  width:28px;height:28px;border-radius:50%;line-height:28px;text-align:center;
-  font-size:15px;color:#5c4322;cursor:pointer;transition:background .2s,transform .25s;}
-#lifeClose:hover{background:rgba(168,49,33,.18);color:var(--seal-red);transform:rotate(90deg);}
-
-/* 减少动态偏好：停掉氛围动画与倾斜（倾斜在 JS 侧亦已跳过）*/
 @media (prefers-reduced-motion: reduce){
-  .life-fx,#lifeCard::after,.life-btn-orb{animation:none !important;}
+  .life-deck-card{transition:opacity .3s !important;}
 }
-.life-title{font-family:var(--serif-disp);font-size:16px;font-weight:700;color:#5c4322;
-  letter-spacing:0.15em;}
-.life-region{font-size:12px;color:#9a7b48;letter-spacing:0.06em;margin:5px 0 14px;
-  padding-bottom:12px;border-bottom:1px solid rgba(139,69,19,0.15);}
-.life-timeline{position:relative;padding-left:20px;}
-.life-timeline::before{content:"";position:absolute;left:5px;top:5px;bottom:5px;width:2px;
-  background:linear-gradient(180deg,rgba(139,69,19,.4),rgba(139,69,19,.1));border-radius:2px;}
-.life-node{position:relative;margin-bottom:16px;}
-.life-node:last-child{margin-bottom:2px;}
-.life-node::before{content:"";position:absolute;left:-19px;top:4px;width:10px;height:10px;border-radius:50%;
-  background:radial-gradient(circle at 35% 30%,#a6cf86,#7a9e54 70%);
-  border:2px solid #f6f1e7;box-shadow:0 0 0 1px rgba(139,69,19,.25);}
-.life-era{display:inline-block;font-family:var(--serif-disp);font-size:12px;font-weight:700;
-  color:var(--seal-red);letter-spacing:0.14em;}
-.life-name{font-family:var(--serif-disp);font-size:16px;font-weight:700;color:#2a1c0e;
-  letter-spacing:0.06em;margin:1px 0 3px;line-height:1.25;}
-.life-desc{font-size:12px;color:#5c4322;line-height:1.65;text-align:justify;
-  display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
-.life-empty{font-size:13px;color:#9a8456;font-style:italic;line-height:1.8;}
 
 /* ============================================================
    封面页 · 聚光揭示 + 鎏金古典
@@ -413,7 +332,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
 /* —— 鎏金焦点环：键盘可达性，统一描金视觉 —— */
 #playBtn:focus-visible,
 #cardClose:focus-visible,
-#lifeClose:focus-visible,
+.life-nav-btn:focus-visible,
 #enterBtn:focus-visible,
 .track-ticks span:focus-visible,
 .legend-toggle input:focus-visible{
@@ -425,8 +344,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
 .legend-toggle input{accent-color:var(--seal-red);cursor:pointer;width:14px;height:14px;flex:none;}
 
 /* —— 触控目标 ≥ 36px：放大关闭键点击域（视觉圆点不变，外扩透明热区）—— */
-#cardClose,#lifeClose{position:absolute;}
-#cardClose::after,#lifeClose::after{content:"";position:absolute;inset:-8px;border-radius:50%;}
+#cardClose{position:absolute;}
+#cardClose::after{content:"";position:absolute;inset:-8px;border-radius:50%;}
 
 /* —— 绢本质感：玻璃面板顶端内高光 + 极淡底纹，增层次 —— */
 #legend,#timeline,.era-badge{
@@ -435,14 +354,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
 #card{box-shadow:-14px 0 44px rgba(60,40,20,0.22),inset 1px 0 0 rgba(255,255,255,.4);}
 
 /* —— 卷轴滚动条：替换默认灰色滚动条，描金贴合主题 —— */
-#card,.life-inner{scrollbar-width:thin;scrollbar-color:var(--gold-3) rgba(92,67,34,.10);}
-#card::-webkit-scrollbar,.life-inner::-webkit-scrollbar{width:8px;}
-#card::-webkit-scrollbar-track,.life-inner::-webkit-scrollbar-track{
+#card,.lc-body{scrollbar-width:thin;scrollbar-color:var(--gold-3) rgba(92,67,34,.10);}
+#card::-webkit-scrollbar,.lc-body::-webkit-scrollbar{width:7px;}
+#card::-webkit-scrollbar-track,.lc-body::-webkit-scrollbar-track{
   background:rgba(92,67,34,.08);border-radius:4px;}
-#card::-webkit-scrollbar-thumb,.life-inner::-webkit-scrollbar-thumb{
+#card::-webkit-scrollbar-thumb,.lc-body::-webkit-scrollbar-thumb{
   background:linear-gradient(180deg,var(--gold-2),var(--gold-3));
   border-radius:4px;border:2px solid transparent;background-clip:padding-box;}
-#card::-webkit-scrollbar-thumb:hover,.life-inner::-webkit-scrollbar-thumb:hover{
+#card::-webkit-scrollbar-thumb:hover,.lc-body::-webkit-scrollbar-thumb:hover{
   background:linear-gradient(180deg,var(--gold-1),var(--gold-2));background-clip:padding-box;}
 
 /* —— 朝代刻度：键盘可聚焦时的轻微提示，悬停反馈更明确 —— */
@@ -473,4 +392,102 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);
   .cover-sub{font-size:18px;letter-spacing:9px;}
   .cover-rule{width:170px;}
   .title-img{width:188px;}
+}
+
+/* ============================================================
+   顶部菜单栏（淡米色）+ 参考资料 / 关于我们 页面
+   悬停滑出朱砂下划线（仿 navbar 组件的 cursor 效果）
+   ============================================================ */
+#topnav{position:fixed;top:0;left:0;right:0;height:46px;z-index:200;
+  display:flex;align-items:center;justify-content:space-between;padding:0 22px;
+  background:linear-gradient(180deg,rgba(247,240,224,.96),rgba(243,233,212,.92));
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  border-bottom:1px solid rgba(199,154,74,.4);
+  box-shadow:0 2px 14px rgba(60,40,20,.14);
+  font-family:var(--serif-disp);}
+.nav-group{display:flex;align-items:center;gap:4px;}
+.nav-item{position:relative;cursor:pointer;user-select:none;
+  padding:8px 18px;border-radius:8px;
+  font-size:15px;font-weight:600;letter-spacing:.12em;color:#5c4322;
+  transition:background .2s,color .2s;}
+.nav-item:hover{background:rgba(90,67,34,.10);color:#3a2a12;}
+.nav-item.active{color:var(--seal-red);}
+/* 滑出下划线 */
+.nav-item::after{content:"";position:absolute;left:50%;bottom:4px;
+  width:0;height:2px;border-radius:2px;transform:translateX(-50%);
+  background:var(--seal-red);transition:width .28s cubic-bezier(.4,0,.2,1);}
+.nav-item:hover::after,.nav-item.active::after{width:calc(100% - 34px);}
+
+/* —— 顶栏中部 · 地名搜索框 —— */
+.nav-center{flex:1;display:flex;justify-content:center;min-width:0;padding:0 14px;}
+.nav-search{position:relative;width:min(360px,42vw);}
+.nav-search input{width:100%;height:30px;border-radius:16px;
+  border:1px solid rgba(199,154,74,.5);background:rgba(255,252,244,.85);
+  padding:0 32px 0 14px;font-family:var(--serif-disp);font-size:13px;color:#4a3a1e;
+  outline:none;transition:border-color .2s,box-shadow .2s,background .2s;}
+.nav-search input::placeholder{color:#a8946a;letter-spacing:.04em;}
+.nav-search input:focus{border-color:var(--gold-3);background:#fffdf7;
+  box-shadow:0 0 0 3px rgba(199,154,74,.18);}
+.nav-search .search-icon{position:absolute;right:11px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;color:#a8731f;opacity:.7;pointer-events:none;}
+.search-results{position:absolute;top:38px;left:0;right:0;max-height:340px;overflow-y:auto;
+  background:rgba(250,245,235,.98);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  border:1px solid rgba(199,154,74,.45);border-radius:10px;padding:5px;
+  box-shadow:0 14px 32px rgba(60,40,20,.3);z-index:210;}
+.search-results.hidden{display:none;}
+.search-row{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:8px 12px;border-radius:7px;cursor:pointer;transition:background .15s;}
+.search-row:hover{background:rgba(199,154,74,.18);}
+.sr-name{font-family:var(--serif-disp);font-size:14px;font-weight:700;color:#2a1c0e;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sr-era{flex:none;font-size:12px;font-weight:600;color:var(--seal-red);letter-spacing:.08em;}
+.search-empty{padding:12px;text-align:center;color:#9a8456;font-size:12px;font-style:italic;}
+
+/* —— 搜索高亮：其余点位灰显，选中点变红突出 + 脉冲 —— */
+#overlay.search-mode .town,
+#overlay.search-mode .relic,
+#overlay.search-mode g.ghost{opacity:.2;filter:grayscale(.9);
+  transition:opacity .35s ease,filter .35s ease;}
+#overlay.search-mode .town.search-hit{opacity:1;filter:none;}
+.town.search-hit .core{fill:#e23b22;stroke:#7a1d10;stroke-width:1.1;}
+.town.search-hit .corering{stroke:#ffd9c0;opacity:1;}
+.town.search-hit .halo{stroke:#e23b22;opacity:.6;}
+.search-pulse{fill:none;stroke:#e23b22;stroke-width:2;pointer-events:none;
+  transform-box:fill-box;transform-origin:center;animation:searchPulse 1.4s ease-out infinite;}
+@keyframes searchPulse{0%{transform:scale(.6);opacity:.85;}70%{transform:scale(2.1);opacity:0;}100%{opacity:0;}}
+
+/* —— 内容页（参考资料 / 关于我们）：淡米色国风版心 —— */
+.site-page{position:fixed;top:46px;left:0;right:0;bottom:0;z-index:150;overflow-y:auto;
+  background:
+    radial-gradient(ellipse at 50% 0%,rgba(230,196,120,.18),transparent 60%),
+    linear-gradient(180deg,#f7f0e0 0%,#efe5d0 100%);
+  opacity:1;transition:opacity .45s ease;
+  display:flex;align-items:flex-start;justify-content:center;}
+.site-page.hidden{opacity:0;pointer-events:none;visibility:hidden;}
+.page-inner{max-width:760px;width:100%;padding:84px 40px 60px;text-align:center;}
+.page-title{font-family:var(--serif-disp);font-size:32px;font-weight:700;color:#5c4322;
+  letter-spacing:.34em;text-indent:.34em;text-shadow:0 1px 0 rgba(255,250,235,.6);}
+.page-rule{width:200px;height:1px;margin:20px auto 36px;
+  background:linear-gradient(90deg,transparent,var(--gold-3) 35%,var(--gold-1) 50%,var(--gold-3) 65%,transparent);}
+.page-placeholder{font-size:15px;color:#9a8456;font-style:italic;letter-spacing:.1em;
+  margin-top:60px;}
+/* 关于我们：三排信息 */
+.about-inner .about-row{font-family:var(--serif-disp);color:#4a3a1e;line-height:2;
+  letter-spacing:.08em;margin:10px 0;}
+.about-names{font-size:26px;font-weight:700;color:#2a1c0e;letter-spacing:.18em;}
+.about-inner .about-row:nth-child(4){font-size:18px;color:#5c4322;}
+.about-contact{font-size:15px;color:#7a6342;margin-top:22px;}
+.about-contact a{color:var(--seal-red);text-decoration:none;border-bottom:1px solid rgba(168,49,33,.4);}
+.about-contact a:hover{color:#8a2417;border-bottom-color:#8a2417;}
+
+#topnav .nav-item:focus-visible{outline:2px solid var(--gold-2);outline-offset:2px;border-radius:6px;}
+
+@media (max-width:768px){
+  #topnav{padding:0 8px;height:44px;}
+  .nav-item{padding:8px 9px;font-size:13px;letter-spacing:.04em;}
+  .nav-center{padding:0 6px;}
+  .nav-search{width:46vw;}
+  .site-page{top:44px;}
+  .page-inner{padding:60px 22px 40px;}
 }
